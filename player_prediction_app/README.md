@@ -77,7 +77,7 @@ backend/data/player_game_data/{TEAM}/{PLAYER}.csv
 ```
 And each CSV contains full box score stats per game.
 
-Right now, there is all 32 teams defensive stats. However, There is a limited moment of 
+### Right now, there is all 32 teams defensive stats. However, There is a limited amount of players to train on, which will be expanded on.
 ---
 
 Enjoy predicting like a pro!

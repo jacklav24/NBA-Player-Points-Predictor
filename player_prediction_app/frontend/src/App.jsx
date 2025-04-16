@@ -14,9 +14,14 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions, ComboboxButton } from '@headlessui/react';
+import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
+import teamLabels from './constants/teamLabels';
+import CustomComboboxDropdown from './components/CustomComboboxDropdown';
+
 
 function App() {
-  const [allPlayers, setAllPlayers] = useState([]);
+  const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [opponents, setOpponents] = useState([]);
 
@@ -36,13 +41,13 @@ function App() {
   useEffect(() => {
     if (team) {
       axios.get(`http://localhost:8000/${team}/players`)
-        .then(res => setAllPlayers(res.data))
+        .then(res => setPlayers(res.data))
         .catch(err => {
           console.error("Error fetching players for team", team, err);
-          setAllPlayers([]);
+          setPlayers([]);
         });
     } else {
-      setAllPlayers([]);
+      setPlayers([]);
     }
   }, [team]);
 
@@ -51,27 +56,26 @@ function App() {
       alert("Please select team, player, and opponent.");
       return;
     }
-
     try {
       setLoading(true);
       setGlobalResult(null);
       setIndividualResult(null);
 
-      const [globalRes, indivRes] = await Promise.all([
+      const [globalRes, individualRes] = await Promise.all([
         axios.post('http://localhost:8000/global_predict', {
           player_name: player,
-          team,
-          opponent
+          team: team,
+          opponent: opponent,
         }),
         axios.post('http://localhost:8000/predict', {
           player_name: player,
-          team,
-          opponent
+          team: team,
+          opponent: opponent,
         })
       ]);
 
       setGlobalResult(globalRes.data);
-      setIndividualResult(indivRes.data);
+      setIndividualResult(individualRes.data);
     } catch (err) {
       console.error(err);
       alert("Prediction failed. Check console for details.");
@@ -79,6 +83,87 @@ function App() {
       setLoading(false);
     }
   };
+  const formatPlayerName = (name) => name
+    .split(/[_-]/)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+
+//   return (
+//     <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
+//       <h1 className="text-3xl font-bold mb-8 text-center">NBA Player Points Predictor</h1>
+
+//       <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
+//         <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
+//           <ComboboxDropdown
+//             label="Team"
+//             options={teams}
+//             value={team}
+//             onChange={(val) => { setTeam(val); setPlayer(''); }}
+//             formatOption={(val) => teamLabels[val] || val}
+//           />
+//           <ComboboxDropdown
+//             label="Player"
+//             options={players}
+//             value={player}
+//             onChange={setPlayer}
+//             disabled={!team}
+//             formatOption={formatPlayerName}
+//           />
+//           <ComboboxDropdown
+//             label="Opponent"
+//             options={opponents}
+//             value={opponent}
+//             onChange={setOpponent}
+//             formatOption={(val) => teamLabels[val] || val}
+//           />
+
+//           <button
+//             className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition disabled:opacity-50 h-[42px]"
+//             onClick={handlePredict}
+//             disabled={loading}
+//           >
+//             {loading ? 'Predicting...' : 'Predict'}
+//           </button>
+//         </div>
+
+//         {loading && (
+//           <div className="text-center mt-2 animate-pulse">
+//             <span className="text-indigo-300">Calculating results...</span>
+//           </div>
+//         )}
+//       </div>
+
+//       {(globalResult || individualResult) && (
+//         <div className="max-w-7xl mx-auto mt-8 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
+//           <h2 className="text-2xl font-semibold mb-4 text-center">Prediction Results</h2>
+
+//           {globalResult && (
+//             <>
+//               <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Global Model</h3>
+//               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 justify-items-center">
+//                 {Object.entries(globalResult).map(([modelName, data]) => (
+//                   <ResultBox key={modelName} title={modelName} data={data} />
+//                 ))}
+//               </div>
+//             </>
+//           )}
+
+//           {individualResult && (
+//             <>
+//               <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Individual Player Model</h3>
+//               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 justify-items-center">
+//                 {Object.entries(individualResult).map(([modelName, data]) => (
+//                   <ResultBox key={modelName} title={modelName} data={data} />
+//                 ))}
+//               </div>
+//             </>
+//           )}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
 
   return (
     <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
@@ -86,9 +171,10 @@ function App() {
 
       <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
         <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
-          <Dropdown label="Team" options={teams} value={team} onChange={(value) => { setTeam(value); setPlayer(''); }} />
-          <Dropdown label="Player" options={allPlayers} value={player} onChange={setPlayer} disabled={!team} />
-          <Dropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} />
+          <ComboboxDropdown label="Team" options={teams} value={team} onChange={(val) => { setTeam(val); setPlayer(''); }} />
+          <ComboboxDropdown label="Player" options={players} value={player} onChange={setPlayer} disabled={!team} />
+          <ComboboxDropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} />
+
           <button
             className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition disabled:opacity-50 h-[42px]"
             onClick={handlePredict}
@@ -134,26 +220,54 @@ function App() {
       )}
     </div>
   );
-}
 
-function Dropdown({ label, options, value, onChange, disabled = false }) {
+
+function ComboboxDropdown({ label, options, value, onChange, disabled = false }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  const filtered = query === ''
+  ? options
+  : options.filter(opt => {
+      const label = teamLabels[opt] || opt;
+      return label.toLowerCase().includes(query.toLowerCase());
+    });
+
   return (
-    <div className="flex-1 min-w-[150px] max-w-[200px]">
-      <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
-      <select
-        disabled={disabled}
-        className="w-full border border-gray-600 bg-[#1e2147] text-[#f5f5f5] rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Select {label}</option>
-        {options.map(opt => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
+    <div className="flex-1 min-w-[150px] max-w-[300px]">
+      <Combobox value={value} onChange={onChange} disabled={disabled}>
+        {/* <ComboboxLabel className="block text-sm font-medium text-gray-300 mb-1">{label}</ComboboxLabel> */}
+        <div className="relative">
+          <ComboboxInput
+            className="w-full px-3 py-2 rounded border border-gray-600 bg-[#1e2147] text-[#f5f5f5] focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            displayValue={(val) => teamLabels[val] || val}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 100)} // avoid closing before click registers
+            placeholder={`Select ${label}`}
+          />
+          <ComboboxButton className="group absolute inset-y-0 right-0 px-2.5">
+            <ChevronDownIcon className="size-4 fill-white/60 group-data-[hover]:fill-white" />
+          </ComboboxButton>
+          {open && filtered.length > 0 && (
+            <ComboboxOptions className="absolute mt-1 w-full max-h-60 overflow-auto rounded-md bg-[#2a2d55] py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+              {filtered.map((opt) => (
+                <ComboboxOption
+                key={opt}
+                value={opt}
+                className="cursor-pointer select-none px-4 py-2 ui-active:bg-indigo-600 ui-active:text-white text-[#f5f5f5]"
+              >
+                {teamLabels[opt] || opt}
+                </ComboboxOption>
+              ))}
+            </ComboboxOptions>
+          )}
+        </div>
+      </Combobox>
     </div>
   );
 }
+
 
 function ResultBox({ title, data }) {
   const format = (val) => val !== undefined ? Number(val).toFixed(2) : '—';
@@ -167,5 +281,5 @@ function ResultBox({ title, data }) {
     </div>
   );
 }
-
+}
 export default App;

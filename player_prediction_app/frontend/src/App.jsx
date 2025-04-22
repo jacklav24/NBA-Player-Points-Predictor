@@ -18,6 +18,8 @@ import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions, ComboboxButto
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
 import teamLabels from './constants/teamLabels';
 import CustomComboboxDropdown from './components/CustomComboboxDropdown';
+import ModelMetrics from './components/ModelMetrics';
+import FeatureBar from './components/FeatureBar';
 
 
 function App() {
@@ -31,11 +33,15 @@ function App() {
 
   const [globalResult, setGlobalResult] = useState(null);
   const [individualResult, setIndividualResult] = useState(null);
+  const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     axios.get('http://localhost:8000/teams').then(res => setTeams(res.data));
     axios.get('http://localhost:8000/opponents').then(res => setOpponents(res.data));
+    axios.get('http://localhost:8000/model_insights')
+      .then(res => setInsights(res.data))
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -88,138 +94,134 @@ function App() {
     .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ');
 
-//   return (
-//     <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
-//       <h1 className="text-3xl font-bold mb-8 text-center">NBA Player Points Predictor</h1>
-
-//       <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
-//         <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
-//           <ComboboxDropdown
-//             label="Team"
-//             options={teams}
-//             value={team}
-//             onChange={(val) => { setTeam(val); setPlayer(''); }}
-//             formatOption={(val) => teamLabels[val] || val}
-//           />
-//           <ComboboxDropdown
-//             label="Player"
-//             options={players}
-//             value={player}
-//             onChange={setPlayer}
-//             disabled={!team}
-//             formatOption={formatPlayerName}
-//           />
-//           <ComboboxDropdown
-//             label="Opponent"
-//             options={opponents}
-//             value={opponent}
-//             onChange={setOpponent}
-//             formatOption={(val) => teamLabels[val] || val}
-//           />
-
-//           <button
-//             className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition disabled:opacity-50 h-[42px]"
-//             onClick={handlePredict}
-//             disabled={loading}
-//           >
-//             {loading ? 'Predicting...' : 'Predict'}
-//           </button>
-//         </div>
-
-//         {loading && (
-//           <div className="text-center mt-2 animate-pulse">
-//             <span className="text-indigo-300">Calculating results...</span>
-//           </div>
-//         )}
-//       </div>
-
-//       {(globalResult || individualResult) && (
-//         <div className="max-w-7xl mx-auto mt-8 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
-//           <h2 className="text-2xl font-semibold mb-4 text-center">Prediction Results</h2>
-
-//           {globalResult && (
-//             <>
-//               <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Global Model</h3>
-//               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 justify-items-center">
-//                 {Object.entries(globalResult).map(([modelName, data]) => (
-//                   <ResultBox key={modelName} title={modelName} data={data} />
-//                 ))}
-//               </div>
-//             </>
-//           )}
-
-//           {individualResult && (
-//             <>
-//               <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Individual Player Model</h3>
-//               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 justify-items-center">
-//                 {Object.entries(individualResult).map(([modelName, data]) => (
-//                   <ResultBox key={modelName} title={modelName} data={data} />
-//                 ))}
-//               </div>
-//             </>
-//           )}
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-
-  return (
-    <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
-      <h1 className="text-3xl font-bold mb-8 text-center">NBA Player Points Predictor</h1>
-
-      <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
-        <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
-          <ComboboxDropdown label="Team" options={teams} value={team} onChange={(val) => { setTeam(val); setPlayer(''); }} />
-          <ComboboxDropdown label="Player" options={players} value={player} onChange={setPlayer} disabled={!team} />
-          <ComboboxDropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} />
-
-          <button
-            className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition disabled:opacity-50 h-[42px]"
-            onClick={handlePredict}
-            disabled={loading}
-          >
-            {loading ? 'Predicting...' : 'Predict'}
-          </button>
+    return (
+      <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
+        <h1 className="text-3xl font-bold mb-8 text-center">
+          NBA Player Points Predictor
+        </h1>
+  
+        <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
+          <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
+            <ComboboxDropdown label="Team" options={teams} value={team} onChange={v => { setTeam(v); setPlayer(''); }} />
+            <ComboboxDropdown label="Player" options={players} value={player} onChange={setPlayer} disabled={!team} />
+            <ComboboxDropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} />
+  
+            <button
+              className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 h-[42px]"
+              onClick={handlePredict}
+              disabled={loading}
+            >
+              {loading ? 'Predicting...' : 'Predict'}
+            </button>
+          </div>
+  
+          {loading && (
+            <div className="text-center mt-2 animate-pulse">
+              <span className="text-indigo-300">Calculating results...</span>
+            </div>
+          )}
         </div>
-
-        {loading && (
-          <div className="text-center mt-2 animate-pulse">
-            <span className="text-indigo-300">Calculating results...</span>
+  
+        {(globalResult || individualResult) && (
+          <div className="max-w-7xl mx-auto mt-8 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
+            <h2 className="text-2xl font-semibold mb-4 text-center text-indigo-200">
+              Prediction Results
+            </h2>
+  
+            {globalResult && (
+              <>
+                <h3 className="text-xl font-medium mb-4 text-center">Global Model</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {Object.entries(globalResult).map(([name, d]) =>
+                    <ResultBox key={name} title={name} data={d} />
+                  )}
+                </div>
+              </>
+            )}
+  
+            {individualResult && (
+              <>
+                <h3 className="text-xl font-medium mb-4 text-center">Individual Model</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {Object.entries(individualResult).map(([name, d]) =>
+                    <ResultBox key={name} title={name} data={d} />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+  
+        {insights && (
+          <div className="max-w-4xl mx-auto mt-12 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
+            <h2 className="text-2xl font-semibold text-center text-indigo-300 mb-4">
+              Model Diagnostics
+            </h2>
+            <ModelMetrics metrics={insights.metrics} />
+            <FeatureBar title="Random Forest Importance" importances={insights.feature_importance.rfr} />
+            <FeatureBar title="XGBoost Importance" importances={insights.feature_importance.xgb} />
           </div>
         )}
       </div>
+    );
+  }
 
-      {(globalResult || individualResult) && (
-        <div className="max-w-7xl mx-auto mt-8 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
-          <h2 className="text-2xl font-semibold mb-4 text-center">Prediction Results</h2>
 
-          {globalResult && (
-            <>
-              <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Global Model</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 justify-items-center">
-                {Object.entries(globalResult).map(([modelName, data]) => (
-                  <ResultBox key={modelName} title={modelName} data={data} />
-                ))}
-              </div>
-            </>
-          )}
+  // return (
+  //   <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
+  //     <h1 className="text-3xl font-bold mb-8 text-center">NBA Player Points Predictor</h1>
 
-          {individualResult && (
-            <>
-              <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Individual Player Model</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 justify-items-center">
-                {Object.entries(individualResult).map(([modelName, data]) => (
-                  <ResultBox key={modelName} title={modelName} data={data} />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  //     <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
+  //       <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
+  //         <ComboboxDropdown label="Team" options={teams} value={team} onChange={(val) => { setTeam(val); setPlayer(''); }} />
+  //         <ComboboxDropdown label="Player" options={players} value={player} onChange={setPlayer} disabled={!team} />
+  //         <ComboboxDropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} />
+
+  //         <button
+  //           className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition disabled:opacity-50 h-[42px]"
+  //           onClick={handlePredict}
+  //           disabled={loading}
+  //         >
+  //           {loading ? 'Predicting...' : 'Predict'}
+  //         </button>
+  //       </div>
+
+  //       {loading && (
+  //         <div className="text-center mt-2 animate-pulse">
+  //           <span className="text-indigo-300">Calculating results...</span>
+  //         </div>
+  //       )}
+  //     </div>
+
+  //     {(globalResult || individualResult) && (
+  //       <div className="max-w-7xl mx-auto mt-8 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
+  //         <h2 className="text-2xl font-semibold mb-4 text-center">Prediction Results</h2>
+
+  //         {globalResult && (
+  //           <>
+  //             <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Global Model</h3>
+  //             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 justify-items-center">
+  //               {Object.entries(globalResult).map(([modelName, data]) => (
+  //                 <ResultBox key={modelName} title={modelName} data={data} />
+  //               ))}
+  //             </div>
+  //           </>
+  //         )}
+
+  //         {individualResult && (
+  //           <>
+  //             <h3 className="text-xl font-medium mb-4 text-center text-indigo-200">Individual Player Model</h3>
+  //             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 justify-items-center">
+  //               {Object.entries(individualResult).map(([modelName, data]) => (
+  //                 <ResultBox key={modelName} title={modelName} data={data} />
+  //               ))}
+  //             </div>
+  //           </>
+  //         )}
+  //       </div>
+  //     )}
+  //   </div>
+  // );
 
 
 function ComboboxDropdown({ label, options, value, onChange, disabled = false }) {
@@ -281,5 +283,5 @@ function ResultBox({ title, data }) {
     </div>
   );
 }
-}
+
 export default App;

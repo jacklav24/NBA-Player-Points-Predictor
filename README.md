@@ -12,6 +12,7 @@ player-predictor-app/
 │   ├── main.py                  # FastAPI entrypoint
 │   ├── model_logic.py           # Model logic and data loading
 │   ├── player_data_setup.py     # Provided preprocessing functions
+|   ├── feature_engineering.py   # handles the chunk of feature engineering
 │   ├── data/
 │   │   ├── team_def_stats.csv
 │   │   └── player_game_logs/

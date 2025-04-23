@@ -10,12 +10,13 @@
 # See the GNU General Public License for more details.
 # <https://www.gnu.org/licenses/>.
 
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 import joblib
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
+
 from model_logic import (
     load_players_data,
     get_player_list,
@@ -24,12 +25,13 @@ from model_logic import (
     train_model,
     predict_points,
 )
+import player_data_setup as setup
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,14 +40,49 @@ app.add_middleware(
 # Load and train on startup
 print("[INFO] Loading data and training global model...")
 players_data, team_stats, all_teams = load_players_data()
-rfr_model, xgb_model, stacked_model, scaler, columns_to_scale, X = train_model(players_data)
-print("[INFO] Global model ready.")
+# train global models
+rfr_model, xgb_model, stacked_model, scaler, columns_to_scale, X, X_train, X_test, y_train, y_test = train_model(players_data)
 
+# predictions on global test set
+rfr_gy_pred     = rfr_model.predict(X_test)
+xgb_gy_pred     = xgb_model.predict(X_test)
+stacked_gy_pred = stacked_model.predict(X_test)
+
+# 1) Compute global metrics
+rfr_g_mae, rfr_g_rmse = mean_absolute_error(y_test, rfr_gy_pred), root_mean_squared_error(y_test, rfr_gy_pred)
+xgb_g_mae, xgb_g_rmse = mean_absolute_error(y_test, xgb_gy_pred), root_mean_squared_error(y_test, xgb_gy_pred)
+stk_g_mae, stk_g_rmse = mean_absolute_error(y_test, stacked_gy_pred), root_mean_squared_error(y_test, stacked_gy_pred)
+
+# 2) Additional stats
+rfr_g_r2   = r2_score(y_test, rfr_gy_pred)
+rfr_g_bias = float((rfr_gy_pred - y_test).mean())
+
+# 3) Feature importances
+rfr_imp = { feat: float(imp) for feat, imp in zip(X.columns, rfr_model.feature_importances_) }
+xgb_imp = { feat: float(imp) for feat, imp in zip(X.columns, xgb_model.feature_importances_) }
+
+# 4) Residuals / actuals / predictions (stacked model)
+residuals   = [ float(err) for err in (y_test - stacked_gy_pred) ]
+actuals     = [ float(a)   for a   in y_test           ]
+predictions = [ float(p)   for p   in stacked_gy_pred ]
+
+print("[INFO] Global model ready.")
 
 class PredictionRequest(BaseModel):
     player_name: str
     team: str
     opponent: str
+    home: str
+
+
+def get_model_stats(model, scaler, columns_to_scale, X_test, y_test):
+    """
+    Retrains each model's own hold-out set to compute MAE/RMSE.
+    """
+    Xs = X_test.copy()
+    Xs[columns_to_scale] = scaler.transform(Xs[columns_to_scale])
+    y_pred = model.predict(Xs)
+    return mean_absolute_error(y_test, y_pred), root_mean_squared_error(y_test, y_pred)
 
 # API endpoints
 @app.get("/{team}/players")
@@ -63,99 +100,68 @@ def get_opponents():
 @app.post("/predict")
 def run_individual_prediction(payload: PredictionRequest):
     try:
-        individual_data = players_data[
+        indiv_df = players_data[
             (players_data["Player"] == payload.player_name) &
-            (players_data["Tm"] == payload.team)
+            (players_data["Tm"]     == payload.team)
         ]
-        if individual_data.empty:
-            raise HTTPException(status_code=404, detail="No individual data found for the selected player/team.")
-        
-        rfr_indiv, xgb_indiv, stacked_indiv, scaler_indiv, columns_indiv, X_indiv = train_model(individual_data)
+        if indiv_df.empty:
+            raise HTTPException(status_code=404, detail="No data for selected player/team.")
 
-        indiv_rfr = predict_points(
-            payload.player_name,
-            payload.team,
-            payload.opponent,
-            individual_data,
-            team_stats,
-            rfr_indiv,
-            scaler_indiv,
-            columns_indiv,
-            X_indiv
-        )
-        indiv_xgb = predict_points(
-            payload.player_name,
-            payload.team,
-            payload.opponent,
-            individual_data,
-            team_stats,
-            xgb_indiv,
-            scaler_indiv,
-            columns_indiv,
-            X_indiv
-        )
-        indiv_stacked = predict_points(
-            payload.player_name,
-            payload.team,
-            payload.opponent,
-            individual_data,
-            team_stats,
-            stacked_indiv,
-            scaler_indiv,
-            columns_indiv,
-            X_indiv
-        )
+        # train individual models
+        rfr_i, xgb_i, stk_i, scaler_i, cols_i, X_i, Xtr_i, Xte_i, ytr_i, yte_i = train_model(indiv_df)
 
-        return {
-            "rfr": indiv_rfr,
-            "xgb": indiv_xgb,
-            "stacked": indiv_stacked
-        }
+        # make predictions
+        res_rfr = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                  indiv_df, team_stats, rfr_i, scaler_i, cols_i, X_i)
+        res_xgb = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                  indiv_df, team_stats, xgb_i, scaler_i, cols_i, X_i)
+        res_stk = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                  indiv_df, team_stats, stk_i, scaler_i, cols_i, X_i)
+
+        # attach metrics computed on individual hold-out
+        res_rfr["mae"], res_rfr["rmse"] = get_model_stats(rfr_i, scaler_i, cols_i, Xte_i, yte_i)
+        res_xgb["mae"], res_xgb["rmse"] = get_model_stats(xgb_i, scaler_i, cols_i, Xte_i, yte_i)
+        res_stk["mae"], res_stk["rmse"] = get_model_stats(stk_i, scaler_i, cols_i, Xte_i, yte_i)
+
+        return { "rfr": res_rfr, "xgb": res_xgb, "stacked": res_stk }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    
 @app.post("/global_predict")
 def run_global_prediction(payload: PredictionRequest):
     try:
-        global_rfr = predict_points(
-            payload.player_name,
-            payload.team,
-            payload.opponent,
-            players_data,
-            team_stats,
-            rfr_model,
-            scaler,
-            columns_to_scale,
-            X
-        )
-        global_xgb = predict_points(
-            payload.player_name,
-            payload.team,
-            payload.opponent,
-            players_data,
-            team_stats,
-            xgb_model,
-            scaler,
-            columns_to_scale,
-            X
-        )
-        global_stacked = predict_points(
-            payload.player_name,
-            payload.team,
-            payload.opponent,
-            players_data,
-            team_stats,
-            stacked_model,
-            scaler,
-            columns_to_scale,
-            X
-        )
+        # make global predictions
+        g_rfr = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                 players_data, team_stats, rfr_model, scaler, columns_to_scale, X)
+        g_xgb = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                 players_data, team_stats, xgb_model, scaler, columns_to_scale, X)
+        g_stk = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                 players_data, team_stats, stacked_model, scaler, columns_to_scale, X)
 
-        return {
-            "rfr": global_rfr,
-            "xgb": global_xgb,
-            "stacked": global_stacked
-        }
+        # attach global metrics
+        g_rfr["mae"], g_rfr["rmse"] = rfr_g_mae, rfr_g_rmse
+        g_xgb["mae"], g_xgb["rmse"] = xgb_g_mae, xgb_g_rmse
+        g_stk["mae"], g_stk["rmse"] = stk_g_mae,   stk_g_rmse
+
+        return { "rfr": g_rfr, "xgb": g_xgb, "stacked": g_stk }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/model_insights")
+def model_insights():
+    return {
+        "metrics": {
+            "rfr_mae":   round(rfr_g_mae,  2),
+            "xgb_mae":   round(xgb_g_mae,  2),
+            "stacked_mae": round(stk_g_mae, 2),
+            "r2":        round(r2_score(y_test, stacked_gy_pred), 4),
+            "bias":      round(float((stacked_gy_pred - y_test).mean()), 2)
+        },
+        "feature_importance": { "rfr": rfr_imp, "xgb": xgb_imp },
+        "residuals":   residuals,
+        "actuals":     actuals,
+        "predictions": predictions
+    }
+

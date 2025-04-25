@@ -32,6 +32,7 @@ function App() {
 
   const [globalResult, setGlobalResult] = useState(null);
   const [individualResult, setIndividualResult] = useState(null);
+  const [blendedResult, setBlendedResult] = useState(null);
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(false);
   const [reTuning, setReTuning] = useState(false);
@@ -72,27 +73,36 @@ function App() {
       setLoading(true);
       setGlobalResult(null);
       setIndividualResult(null);
+      setBlendedResult(null); 
       setIsPredicting(true);
-      const [globalRes, individualRes] = await Promise.all([
-        axios.post('http://localhost:8000/global_predict', {
+      // const [globalRes, individualRes, blendedRes] = await Promise.all([
+      const [blendedRes] = await Promise.all([
+        // axios.post('http://localhost:8000/global_predict', {
+        //   player_name: player,
+        //   team: team,
+        //   opponent: opponent,
+        //   home: location,
+        // }),
+        // axios.post('http://localhost:8000/predict', {
+        //   player_name: player,
+        //   team: team,
+        //   opponent: opponent,
+        //   home: location,
+        // }),
+        axios.post('http://localhost:8000/predict_both', {
           player_name: player,
           team: team,
           opponent: opponent,
           home: location,
         }),
-        axios.post('http://localhost:8000/predict', {
-          player_name: player,
-          team: team,
-          opponent: opponent,
-          home: location,
-        })
       ]);
 
-      setGlobalResult(globalRes.data);
-      setIndividualResult(individualRes.data);
+      setGlobalResult(blendedRes.data.global_model);
+      setIndividualResult(blendedRes.data.individual_model);
+      setBlendedResult(blendedRes.data.blended_model)
       setPlayerPredicted(true);
 
-      // re fetch model insights
+      // re-fetch model insights
       await fetchInsights();
 
     } catch (err) {
@@ -101,14 +111,22 @@ function App() {
     }finally {
       setLoading(false);
       setIsPredicting(false);
+      
     }
   };
 
 
   
   const fetchInsights = () => {
+    // axios.get("http://localhost:8000/model_insights"//, {
+    // //   player_name: player,
+    // //   team: team,
+    // //   opponent: opponent,
+    // //   home: location,
+    // // })
+    // ).then(res => setInsights(res.data))
     axios.get("http://localhost:8000/model_insights")
-         .then(res => setInsights(res.data))
+    .then(res => setInsights(res.data))
          .catch(console.error);
   };
 
@@ -160,18 +178,19 @@ function App() {
           )}
         </div>
   
-        <Predictions indiv={individualResult} global={globalResult} playerName={player} />
+        <Predictions indiv={individualResult} global={globalResult} blended={blendedResult} playerName={player} />
+         
   
         {insights && (
-          <div className="max-w-4xl mx-auto mt-12 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
+          <div className="max-w-7xl mx-auto mt-12 p-6 bg-[#2a2d55] shadow-xl">
             <h2 className="text-2xl font-semibold text-center text-indigo-300 mb-4">
               Model Diagnostics
             </h2>
-            <ModelMetrics
-              metrics={insights.metrics}
-              featureImportance={insights.feature_importance}
-              playerPredicted={playerPredicted}
-            />
+              <ModelMetrics
+                metrics={insights.metrics}
+                featureImportance={insights.feature_importance}
+                playerPredicted={playerPredicted}
+              />
           </div>
         )}
       </div>

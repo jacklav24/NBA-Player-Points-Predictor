@@ -43,6 +43,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# In‐memory cache for individual models
+_indiv_model_cache = {}  # key: (player,team) → (rfr_model, xgb_model, stacked_model, scaler, X)
+player = None
+team = None
+global rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
+
+rfr_model_i       = None
+xgb_model_i       = None
+stacked_model_i   = None
+scaler_i          = None
+X_i               = None
+X_train_i         = None
+X_test_i          = None
+y_train_i         = None
+y_test_i          = None
+
 config_dir   = Path(__file__).parent / "data/optimization"
 with open(config_dir / "rfr_params.json") as f:
     rfr_params = json.load(f)
@@ -52,6 +68,7 @@ with open(config_dir / "xgb_params.json") as f:
 # Load and train on startup
 print("[INFO] Loading data and training global model...")
 players_data, team_stats, all_teams = load_players_data()
+
 # train global models
 rfr_model, xgb_model, stacked_model, scaler, X, X_train, X_test, y_train, y_test = train_model(players_data, rfr_params, xgb_params)
 Xs_test = X_test.copy()
@@ -164,6 +181,9 @@ def get_opponents():
 
 @app.post("/predict")
 def run_individual_prediction(payload: PredictionRequest):
+    global player, team, rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
+    player, team = payload.player_name, payload.team
+    key = (player, team)
     
     try:
         indiv_df = players_data[
@@ -172,68 +192,241 @@ def run_individual_prediction(payload: PredictionRequest):
         ].copy()
         if indiv_df.empty:
             raise HTTPException(status_code=404, detail="No data for selected player/team.")
-
+        
+        if key not in _indiv_model_cache:
+            rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i = train_model(
+                indiv_df, rfr_params=rfr_params, xgb_params=xgb_params
+            )
+        _indiv_model_cache[key] = (rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i)
         # train individual models
-        global rfr_model_i, xgb_model_i, stacked_model_i, X_test_i, y_test_i, scaler_i
-
-
-        rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i,_,X_test_i,_,y_test_i = train_model(indiv_df, rfr_params, xgb_params)
+        # rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i,_,X_test_i,_,y_test_i = train_model(indiv_df, rfr_params, xgb_params)
         # predictions on global test set
 
-        res_rfr = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+        rfr_pred_i = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
                                   indiv_df, team_stats, rfr_model_i, scaler_i, X_i)
-        res_xgb = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+        xgb_pred_i = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
                                   indiv_df, team_stats, xgb_model_i, scaler_i, X_i)
-        res_stk = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+        stacked_pred_i = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
                                   indiv_df, team_stats, stacked_model_i, scaler_i, X_i)
         
-        return { "rfr": res_rfr, "xgb": res_xgb, "stacked": res_stk }
+        return { "rfr": rfr_pred_i, "xgb": xgb_pred_i, "stacked": stacked_pred_i }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/global_predict")
 def run_global_prediction(payload: PredictionRequest):
-    print(xgb_model.n_estimators)
+    global player, team
+    player, team = payload.player_name, payload.team
+    
+    
+    
     try:
         # make global predictions
-        g_rfr = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+        rfr_pred_g = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
                                  players_data, team_stats, rfr_model, scaler, X)
-        g_xgb = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+        xgb_pred_g = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
                                  players_data, team_stats, xgb_model, scaler, X)
-        g_stk = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+        stacked_pred_g = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
                                  players_data, team_stats, stacked_model, scaler, X)
 
-        return { "rfr": g_rfr, "xgb": g_xgb, "stacked": g_stk }
+        return { "rfr": rfr_pred_g, "xgb": xgb_pred_g, "stacked": stacked_pred_g }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/predict_both")
+def run_blended_prediction(payload: PredictionRequest):
+    global player, team, rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
+    player, team = payload.player_name, payload.team
+    key = (player, team)
+    
+    try:
+        indiv_df = players_data[
+            (players_data["Player"] == payload.player_name) &
+            (players_data["Tm"]     == payload.team)
+        ].copy()
+        if indiv_df.empty:
+            raise HTTPException(status_code=404, detail="No data for selected player/team.")
+        
+        if key not in _indiv_model_cache:
+            rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i = train_model(
+                indiv_df, rfr_params=rfr_params, xgb_params=xgb_params
+            )
+        _indiv_model_cache[key] = (rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i)
+        
+        # make individual predictions
+        rfr_pred_i = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                  indiv_df, team_stats, rfr_model_i, scaler_i, X_i)
+        xgb_pred_i = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                  indiv_df, team_stats, xgb_model_i, scaler_i, X_i)
+        stacked_pred_i = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                  indiv_df, team_stats, stacked_model_i, scaler_i, X_i)
+        # make global predictions
+        rfr_pred_g = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                 players_data, team_stats, rfr_model, scaler, X)
+        xgb_pred_g = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                 players_data, team_stats, xgb_model, scaler, X)
+        stacked_pred_g = predict_points(payload.player_name, payload.team, payload.opponent, payload.home,
+                                 players_data, team_stats, stacked_model, scaler, X)
+
+
+        # --- 3) Compute the blend weight α based on N games ---
+        N = len(indiv_df)
+        THRESHOLD = 30           # tweak this to taste
+        α = min(1.0, N/THRESHOLD)
+
+        # --- 4) Blend the three predictions ---
+        blended = {
+          "rfr":     α*rfr_pred_i["predicted_points"]    + (1-α)*rfr_pred_g["predicted_points"],
+          "xgb":     α*xgb_pred_i["predicted_points"]    + (1-α)*xgb_pred_g["predicted_points"],
+          "stacked": α*stacked_pred_i["predicted_points"]+ (1-α)*stacked_pred_g["predicted_points"],
+        }
+        to_return = {
+          "global_model":     {"rfr": rfr_pred_g,     "xgb": xgb_pred_g,     "stacked": stacked_pred_g},
+          "individual_model": {"rfr": rfr_pred_i,      "xgb": xgb_pred_i,      "stacked": stacked_pred_i},
+          "blended_model":    {"rfr": round(blended["rfr"],2), 
+                                "xgb": round(blended["xgb"],2), 
+                                "stacked": round(blended["stacked"],2),
+                                "alpha": round(α, 2)}
+        }
+        print(to_return)
+        # --- 5) Return all three sets side by side ---
+        return {
+          "global_model":     {"rfr": rfr_pred_g,     "xgb": xgb_pred_g,     "stacked": stacked_pred_g},
+          "individual_model": {"rfr": rfr_pred_i,      "xgb": xgb_pred_i,      "stacked": stacked_pred_i},
+          "blended_model":    {"rfr": round(blended["rfr"],2), 
+                                "xgb": round(blended["xgb"],2), 
+                                "stacked": round(blended["stacked"],2),
+                                "alpha": round(α, 2)}
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 # Model Info Endpoints
+
+# @app.get("/model_insights")
+# def model_insights():#payload: PredictionRequest):
+#     global Xs_test, player, team, scaler_i
+#     rfr_p_g = rfr_model.predict(Xs_test)
+#     xgb_p_g = xgb_model.predict(Xs_test)
+#     stk_p_g = stacked_model.predict(Xs_test)
+#     key = (player, team)
+#     Xs_test_i = None
+    
+#     if key not in _indiv_model_cache:
+#         return out
+#     (
+#       rfr_model_i,
+#       xgb_model_i,
+#       stacked_model_i,
+#       scaler_i,
+#       X_i,
+#       X_train_i,
+#       X_test_i,
+#       y_train_i,
+#       y_test_i
+#     ) = _indiv_model_cache[key]
+    
+    
+
+#     out = {
+#         "metrics": {
+#             "rfr_mae_g": mean_absolute_error(y_test, rfr_p_g),
+#             "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
+#             "rfr_r2_g": r2_score(y_test, rfr_p_g),
+#             "rfr_bias_g": float((rfr_p_g - y_test).mean()),
+
+#             "xgb_mae_g": mean_absolute_error(y_test, xgb_p_g),
+#             "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
+#             "xgb_r2_g": r2_score(y_test, xgb_p_g),
+#             "xgb_bias_g": float((xgb_p_g - y_test).mean()),
+
+#             "stacked_mae_g": mean_absolute_error(y_test, stk_p_g),
+#             "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
+#             "stacked_r2_g": r2_score(y_test, stk_p_g),
+#             "stacked_bias_g": float((stk_p_g - y_test).mean()),
+#         },
+#         "feature_importance": {
+#             "rfr": rfr_g_imp,
+#             "xgb": xgb_g_imp
+#         }
+#     }
+    
+
+#     if rfr_model_i is not None:
+#        # scale only the configured columns
+#         Xs_test_i = X_test_i.copy()
+#         Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
+
+#         rfr_p_i = rfr_model_i.predict(Xs_test_i)
+#         out["metrics"].update({
+#             "rfr_mae_i": mean_absolute_error(y_test_i, rfr_p_i),
+#             "rfr_rmse_i": root_mean_squared_error(y_test_i, rfr_p_i),
+#             "rfr_r2_i": r2_score(y_test_i, rfr_p_i),
+#             "rfr_bias_i": float((rfr_p_i - y_test_i).mean()),
+#         })
+
+#     if xgb_model_i is not None:
+#         Xs_test_i = X_test_i.copy()
+#         Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
+#         xgb_p_i = xgb_model_i.predict(Xs_test_i)
+#         out["metrics"].update({
+#             "xgb_mae_i": mean_absolute_error(y_test_i, xgb_p_i),
+#             "xgb_rmse_i": root_mean_squared_error(y_test_i, xgb_p_i),
+#             "xgb_r2_i": r2_score(y_test_i, xgb_p_i),
+#             "xgb_bias_i": float((xgb_p_i - y_test_i).mean()),
+#         })
+
+#     if stacked_model_i is not None:
+#         Xs_test_i = X_test_i.copy()
+#         Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
+#         stk_p_i = stacked_model_i.predict(Xs_test_i)
+#         out["metrics"].update({
+#             "stacked_mae_i": mean_absolute_error(y_test_i, stk_p_i),
+#             "stacked_rmse_i": root_mean_squared_error(y_test_i, stk_p_i),
+#             "stacked_r2_i": r2_score(y_test_i, stk_p_i),
+#             "stacked_bias_i": float((stk_p_i - y_test_i).mean()),
+#         })
+    
+#     return out
+
 
 @app.get("/model_insights")
 def model_insights():
-    global Xs_test
+    """
+    Returns metrics and feature importances for the global models,
+    and—if an individual model has been trained for the last queried player/team—
+    metrics for the individual and blended models as well.
+    """
+    # --- 1) Compute global metrics on the original full dataset's hold-out set ---
+    # Scale the global test set (from initial train_test_split on full_df)
+    
+    # Predictions from global models on that global hold-out
+    global Xs_test, player, team, scaler_i
     rfr_p_g = rfr_model.predict(Xs_test)
     xgb_p_g = xgb_model.predict(Xs_test)
     stk_p_g = stacked_model.predict(Xs_test)
 
+    # Build base output with global metrics
     out = {
         "metrics": {
-            "rfr_mae_g": mean_absolute_error(y_test, rfr_p_g),
+            "rfr_mae_g":  mean_absolute_error(y_test, rfr_p_g),
             "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
-            "rfr_r2_g": r2_score(y_test, rfr_p_g),
+            "rfr_r2_g":   r2_score(y_test, rfr_p_g),
             "rfr_bias_g": float((rfr_p_g - y_test).mean()),
 
-            "xgb_mae_g": mean_absolute_error(y_test, xgb_p_g),
+            "xgb_mae_g":  mean_absolute_error(y_test, xgb_p_g),
             "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
-            "xgb_r2_g": r2_score(y_test, xgb_p_g),
+            "xgb_r2_g":   r2_score(y_test, xgb_p_g),
             "xgb_bias_g": float((xgb_p_g - y_test).mean()),
 
-            "stacked_mae_g": mean_absolute_error(y_test, stk_p_g),
+            "stacked_mae_g":  mean_absolute_error(y_test, stk_p_g),
             "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
-            "stacked_r2_g": r2_score(y_test, stk_p_g),
+            "stacked_r2_g":   r2_score(y_test, stk_p_g),
             "stacked_bias_g": float((stk_p_g - y_test).mean()),
         },
         "feature_importance": {
@@ -241,43 +434,61 @@ def model_insights():
             "xgb": xgb_g_imp
         }
     }
-    
-    Xs_test_i = None
 
-    if "rfr_model_i" in globals() and rfr_model_i:
-        Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
+    # --- 2) Check if we have an individual model cached ---
+    key = (player, team)
+    if key not in _indiv_model_cache:
+        return out
 
-        rfr_p_i = rfr_model_i.predict(Xs_test_i)
+    # --- 3) Unpack individual model and its test split ---
+    (
+        rfr_i, xgb_i, stk_i,
+        scaler_i, X_i,
+        X_train_i, X_test_i,
+        y_train_i, y_test_i
+    ) = _indiv_model_cache[key]
+
+    # --- 4) Compute individual predictions and metrics on that player's hold-out ---
+    Xs_indiv = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+    rfr_p_i = rfr_i.predict(Xs_indiv)
+    xgb_p_i = xgb_i.predict(Xs_indiv)
+    stk_p_i = stk_i.predict(Xs_indiv)
+    out["metrics"].update({
+        "rfr_mae_i":  mean_absolute_error(y_test_i, rfr_p_i),
+        "rfr_rmse_i": root_mean_squared_error(y_test_i, rfr_p_i),
+        "rfr_r2_i":   r2_score(y_test_i, rfr_p_i),
+        "rfr_bias_i": float((rfr_p_i - y_test_i).mean()),
+
+        "xgb_mae_i":  mean_absolute_error(y_test_i, xgb_p_i),
+        "xgb_rmse_i": root_mean_squared_error(y_test_i, xgb_p_i),
+        "xgb_r2_i":   r2_score(y_test_i, xgb_p_i),
+        "xgb_bias_i": float((xgb_p_i - y_test_i).mean()),
+
+        "stacked_mae_i":  mean_absolute_error(y_test_i, stk_p_i),
+        "stacked_rmse_i": root_mean_squared_error(y_test_i, stk_p_i),
+        "stacked_r2_i":   r2_score(y_test_i, stk_p_i),
+        "stacked_bias_i": float((stk_p_i - y_test_i).mean()),
+    })
+
+    # --- 5) Compute blended metrics: use the individual's hold-out, but global preds from that same set ---
+    alpha = min(1.0, len(X_i) / 30)
+    global_on_indiv = {
+        'rfr':  rfr_model.predict(Xs_indiv),
+        'xgb':  xgb_model.predict(Xs_indiv),
+        'stacked': stacked_model.predict(Xs_indiv)
+    }
+    indiv_preds = {'rfr': rfr_p_i, 'xgb': xgb_p_i, 'stacked': stk_p_i}
+
+    for m in ['rfr', 'xgb', 'stacked']:
+        blended = alpha * indiv_preds[m] + (1 - alpha) * global_on_indiv[m]
         out["metrics"].update({
-            "rfr_mae_i": mean_absolute_error(y_test_i, rfr_p_i),
-            "rfr_rmse_i": root_mean_squared_error(y_test_i, rfr_p_i),
-            "rfr_r2_i": r2_score(y_test_i, rfr_p_i),
-            "rfr_bias_i": float((rfr_p_i - y_test_i).mean()),
+            f"{m}_mae_b":  mean_absolute_error(y_test_i, blended),
+            f"{m}_rmse_b": root_mean_squared_error(y_test_i, blended),
+            f"{m}_r2_b":   r2_score(y_test_i, blended),
+            f"{m}_bias_b": float((blended - y_test_i).mean()),
         })
-
-    if "xgb_model_i" in globals() and xgb_model_i:
-        Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
-        xgb_p_i = xgb_model_i.predict(Xs_test_i)
-        out["metrics"].update({
-            "xgb_mae_i": mean_absolute_error(y_test_i, xgb_p_i),
-            "xgb_rmse_i": root_mean_squared_error(y_test_i, xgb_p_i),
-            "xgb_r2_i": r2_score(y_test_i, xgb_p_i),
-            "xgb_bias_i": float((xgb_p_i - y_test_i).mean()),
-        })
-
-    if "stacked_model_i" in globals() and stacked_model_i:
-        Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
-        stk_p_i = stacked_model_i.predict(Xs_test_i)
-        out["metrics"].update({
-            "stacked_mae_i": mean_absolute_error(y_test_i, stk_p_i),
-            "stacked_rmse_i": root_mean_squared_error(y_test_i, stk_p_i),
-            "stacked_r2_i": r2_score(y_test_i, stk_p_i),
-            "stacked_bias_i": float((stk_p_i - y_test_i).mean()),
-        })
-
 
     return out
-
 
 
 #  FUTURE POTENTIAL ENDPOINTS

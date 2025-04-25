@@ -93,7 +93,8 @@ def scale_columns(scaler, X, fitting=False):
         X[COLUMNS_TO_SCALE] = scaler.fit_transform(X[COLUMNS_TO_SCALE])
     else:
         X[COLUMNS_TO_SCALE] = scaler.transform(X[COLUMNS_TO_SCALE])
-        
+    
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
     return X
 
 

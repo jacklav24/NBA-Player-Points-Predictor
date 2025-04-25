@@ -11,15 +11,19 @@
 # <https://www.gnu.org/licenses/>.
 
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import numpy as np
-from feature_engineering import preprocess_player_df, engineer_features
 
-FEATURE_COLUMNS = ['Home', 
-    'Pace', 'eFG%_y', 'TOV%', 'DRB%',
-    'PTS_last_5_avg', 'MP_last_5_avg', 'PTS_trend_5',
-    'PTS_vol_5', 'PTS_per_min', 'def_adj', #'Days_of_rest'
-]
+from constants import TARGET_COLUMN, FEATURE_COLUMNS, COLUMNS_TO_SCALE
+
+# Keywords indicating Did Not Play
+DNP_KEYWORDS = {'Inactive', 'Did Not Play', 'Did Not Dress', 'Not With Team', ''}
+
+SHOOTING_STATS = {
+    'FG%': 'FGA',   # Field Goal %
+    '3P%': '3PA',   # 3-Point %
+    '2P%': '2PA',   # 2-Point %
+    'FT%': 'FTA'    # Free Throw %
+}
 
 def read_misc_stats(filepath):
     team_stats_df = pd.read_csv(filepath)
@@ -30,32 +34,65 @@ def read_misc_stats(filepath):
     team_stats_df.to_csv(filepath, index=False)
     return
 
-def player_data_merge(player_file):
+# converts minutes played from 00:00 format to minutes (with decimal)
+def convert_mp(mp):
+    minutes, seconds = mp.split(':')
+    return int(minutes) + int(seconds) / 60
+
+
+def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_name: str) -> pd.DataFrame:
+    """
+    Raw CSV → merged, cleaned DataFrame ready for feature engineering.
+    - Parses dates, converts MP string→float, filters out DNPs.
+    - Merges opponent team defensive stats.
+    """
     
-    df = pd.read_csv(player_file)
-    df2 = pd.read_csv('./data/team_def_stats.csv')
-    df['Home'] = df['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
-    df = df[df['MP'].notna() & (df['MP'] != '') & (df["MP"] != 'Inactive') & (df["MP"] != 'Did Not Play') & (df["MP"] != 'Did Not Dress') & (df["MP"] != 'Not With Team')]
-    merged_df = pd.merge(df, df2, left_on='Opp', right_on='Team', how='left')
-    col_to_keep = ['MP', 'FG', 'FGA', 'FG%', '3P', '3PA', '3P%', '2P', '2PA', '2P%',
-       'eFG%_x', 'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB', 'AST', 'STL', 'BLK',
-       'TOV', 'PF', 'PTS', 'Home',
-       'DRtg', 'Pace', 'eFG%_y', 'TOV%', 'DRB%', 'FT/FGA']
-    # merged_df["MP"] = merged_df["MP"].apply(convert_mp)
-    merged_df['PTS'] = pd.to_numeric(merged_df['PTS'], errors='coerce')
-    merged_df['MP'] = pd.to_numeric(merged_df['MP'], errors='coerce')
-    merged_df['FGA'] = pd.to_numeric(merged_df['PTS'], errors='coerce')
-    merged_df['PTS'] = merged_df["PTS"].astype(float)
-    merged_df['MP'] = merged_df["MP"].astype(float)
-    merged_df['FGA'] = merged_df["FGA"].astype(float)
-    return merged_df[col_to_keep]
+    df = df.copy()
+    df["Player"] = player_name
+    
+    # merge player game logs with opposing team's defensive stats
+    merged = df.merge(team_stats_df, left_on='Opp', right_on='Team', how='left')
+    
+    # Parse date
+    merged['Date'] = pd.to_datetime(merged['Date'], errors='coerce')
+    
+    # Flag home games
+    merged['Home'] = merged['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
+    
+    # drop games where 
+    merged = merged[merged['MP'].notna() & (merged['MP'] != '') & (merged["MP"] != 'Inactive') & (merged["MP"] != 'Did Not Play') & (merged["MP"] != 'Did Not Dress') & (merged["MP"] != 'Not With Team')]
+    # Convert MP to minutes float
+    merged['MP'] = merged['MP'].apply(lambda x: convert_mp(x) if isinstance(x, str) else 0)
 
+    # Numeric coercion
+    merged['PTS'] = pd.to_numeric(merged['PTS'], errors='coerce').fillna(0)
+    merged['FGA'] = pd.to_numeric(merged['FGA'], errors='coerce').fillna(0)
 
-def scale_columns(scaler, X, columns, fitting=False):
+    merged.drop(columns=['Rk', 'Gcar', 'Gtm', 'Team_x', 'Unnamed: 5', 'Opp', 'Result',
+        'GmSc', '+/-', 'Unnamed: 0', 'Team_y', ], inplace=True)
+    # # Filter out Did Not Play
+    # df = df[~df['MP'].isin([0])]
+    for pct_col, attempts_col in SHOOTING_STATS.items():
+        # Set percentage to 0 if attempts = 0 (no shots → 0% success)
+        merged.loc[merged[attempts_col] == 0, pct_col] = 0
+        
+        # Force-convert to numeric (strings/empty → NaN)
+        merged[pct_col] = pd.to_numeric(merged[pct_col], errors='coerce')
+        
+        # Fill remaining NaN (missing/invalid) with 0
+        merged[pct_col] = merged[pct_col].fillna(0)
+    # Merge opponent defensive stats
+    # assert not merged.isna().any().any(), "NaNs detected!"
+    # assert not np.isinf(merged.select_dtypes(include=np.number)).any().any(), "Infs detected!"
+    return merged
+
+def scale_columns(scaler, X, fitting=False):
+    ''' FITTING = FALSE : if you are doing the INITIAL Scaling of the data. 
+        FITTING = TRUE  : if you are setting up the scaler'''
     if fitting:
-        X[columns] = scaler.fit_transform(X[columns])
+        X[COLUMNS_TO_SCALE] = scaler.fit_transform(X[COLUMNS_TO_SCALE])
     else:
-        X[columns] = scaler.transform(X[columns])
+        X[COLUMNS_TO_SCALE] = scaler.transform(X[COLUMNS_TO_SCALE])
         
     return X
 
@@ -126,11 +163,11 @@ def get_rolling_avgs(player_df):
     
     return player_df
 
-def predict_game(input_row, scaler, columns_to_scale, model, X):
+def predict_game(input_row, scaler, model, X):
     
     input_row_scaled = input_row.copy()
     input_row_scaled = input_row_scaled[X.columns]
-    input_row_scaled[columns_to_scale] = scaler.transform(input_row[columns_to_scale])
+    input_row_scaled[COLUMNS_TO_SCALE] = scaler.transform(input_row[COLUMNS_TO_SCALE])
     
     predicted_pts = model.predict(input_row)[0]
     return predicted_pts

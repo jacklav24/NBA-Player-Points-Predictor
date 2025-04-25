@@ -38,7 +38,7 @@ player-predictor-app/
 ## 🚀 How to Run
 
 ### Backend
-```bash
+```zsh
 cd player_predition_app/backend
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
@@ -47,7 +47,7 @@ uvicorn main:app --reload
 ```
 
 ### Frontend
-```bash
+```zsh
 cd player_prediction_app/frontend
 npm install
 npm run dev

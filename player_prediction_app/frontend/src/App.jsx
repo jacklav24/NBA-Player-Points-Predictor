@@ -17,6 +17,8 @@ import axios from 'axios';
 import CustomComboboxDropdown from './components/CustomComboboxDropdown';
 import ModelMetrics from './components/ModelMetrics';
 import FeatureBar from './components/FeatureBar';
+import teamLabels from './constants/teamLabels';
+import Predictions from './components/Predictions';
 
 function App() {
   const [players, setPlayers] = useState([]);
@@ -32,6 +34,12 @@ function App() {
   const [individualResult, setIndividualResult] = useState(null);
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [reTuning, setReTuning] = useState(false);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const[playerPredicted, setPlayerPredicted] = useState(false);
+
+ 
+
 
   useEffect(() => {
     axios.get('http://localhost:8000/teams').then(res => setTeams(res.data));
@@ -39,7 +47,7 @@ function App() {
     axios.get('http://localhost:8000/model_insights')
       .then(res => setInsights(res.data))
       .catch(console.error);
-  }, []);
+    }, []);
 
   useEffect(() => {
     if (team) {
@@ -60,10 +68,11 @@ function App() {
       return;
     }
     try {
+      setPlayerPredicted(false);
       setLoading(true);
       setGlobalResult(null);
       setIndividualResult(null);
-
+      setIsPredicting(true);
       const [globalRes, individualRes] = await Promise.all([
         axios.post('http://localhost:8000/global_predict', {
           player_name: player,
@@ -81,17 +90,43 @@ function App() {
 
       setGlobalResult(globalRes.data);
       setIndividualResult(individualRes.data);
+      setPlayerPredicted(true);
+
+      // re fetch model insights
+      await fetchInsights();
+
     } catch (err) {
       console.error("Predict error:", err.response?.data || err);
       alert("Prediction failed; check console for details.");
     }finally {
       setLoading(false);
+      setIsPredicting(false);
     }
   };
-  const formatPlayerName = (name) => name
-    .split(/[_-]/)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
+
+
+  
+  const fetchInsights = () => {
+    axios.get("http://localhost:8000/model_insights")
+         .then(res => setInsights(res.data))
+         .catch(console.error);
+  };
+
+  const kickOffOptimize = async () => {
+    setReTuning(true);
+    try {
+      const res = await fetch("http://localhost:8000/optimize_sync?n_trials=50", { method: 'POST' });
+      const data = await res.json();
+      console.log("Tuning complete:", data);
+      await fetchInsights();    
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setReTuning(false);
+    }
+  };
+
+ 
 
     return (
       <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
@@ -101,17 +136,21 @@ function App() {
   
         <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
           <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
-            <CustomComboboxDropdown label="Team" options={teams} value={team} onChange={v => { setTeam(v); setPlayer(''); }} />
+            <CustomComboboxDropdown label="Team" options={teams} value={team} onChange={v => { setTeam(v); setPlayer(''); }} displayMap={teamLabels} />
             <CustomComboboxDropdown label="Player" options={players} value={player} onChange={setPlayer} disabled={!team} />
-            <CustomComboboxDropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} />
-            <CustomComboboxDropdown label="Location" options={['Home','Away']} value={location} onChange={setLocation} />
+            <CustomComboboxDropdown label="Opponent" options={opponents} value={opponent} onChange={setOpponent} displayMap={teamLabels}/>
+            <CustomComboboxDropdown label="Location" options={['Home','Away']} value={location} onChange={setLocation} displayMap={{ Home: 'Home (H)', Away: 'Away (A)' }} />
             <button
               className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 h-[42px]"
               onClick={handlePredict}
-              disabled={loading}
+              disabled={loading | reTuning}
             >
               {loading ? 'Predicting...' : 'Predict'}
             </button>
+            <button className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:opacity-50 h-[42px]"
+                    onClick={kickOffOptimize}
+                    disabled={reTuning}>
+                    {reTuning ? 'Tuning...' : 'Re-Tune Hyperparameters'}</button>
           </div>
   
           {loading && (
@@ -121,44 +160,18 @@ function App() {
           )}
         </div>
   
-        {(globalResult || individualResult) && (
-          <div className="max-w-7xl mx-auto mt-8 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
-            <h2 className="text-2xl font-semibold mb-4 text-center text-indigo-200">
-              Prediction Results
-            </h2>
-  
-            {globalResult && (
-              <>
-                <h3 className="text-xl font-medium mb-4 text-center">Global Model</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {Object.entries(globalResult).map(([name, d]) =>
-                    <ResultBox key={name} title={name} data={d} />
-                  )}
-                </div>
-              </>
-            )}
-  
-            {individualResult && (
-              <>
-                <h3 className="text-xl font-medium mb-4 text-center">Individual Model</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {Object.entries(individualResult).map(([name, d]) =>
-                    <ResultBox key={name} title={name} data={d} />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <Predictions indiv={individualResult} global={globalResult} playerName={player} />
   
         {insights && (
           <div className="max-w-4xl mx-auto mt-12 p-6 bg-[#2a2d55] rounded-xl shadow-xl">
             <h2 className="text-2xl font-semibold text-center text-indigo-300 mb-4">
               Model Diagnostics
             </h2>
-            <ModelMetrics metrics={insights.metrics} />
-            <FeatureBar title="Random Forest Importance" importances={insights.feature_importance.rfr} />
-            <FeatureBar title="XGBoost Importance" importances={insights.feature_importance.xgb} />
+            <ModelMetrics
+              metrics={insights.metrics}
+              featureImportance={insights.feature_importance}
+              playerPredicted={playerPredicted}
+            />
           </div>
         )}
       </div>
@@ -166,17 +179,6 @@ function App() {
   }
 
 
-function ResultBox({ title, data }) {
-  const format = (val) => val !== undefined ? Number(val).toFixed(2) : '—';
 
-  return (
-    <div className="w-full sm:w-80 bg-[#1e2147] border border-indigo-400 rounded-lg p-4 text-center">
-      <h3 className="text-xl font-bold text-indigo-200 mb-3">{title.toUpperCase()}</h3>
-      <p><span className="font-medium">Predicted Points:</span> {format(data.predicted_points)}</p>
-      <p><span className="font-medium">MAE:</span> {format(data.mae)}</p>
-      <p><span className="font-medium">RMSE:</span> {format(data.rmse)}</p>
-    </div>
-  );
-}
 
 export default App;

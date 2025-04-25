@@ -62,6 +62,11 @@ Frontend will start on `http://localhost:5173` and communicate with FastAPI at `
 - Run prediction and view predicted single game points, MAE, RMSE
 - Trained on historical rolling averages + opponent metrics
 
+-Model optimization
+    - To optimize the XGB and RFR model parameters, run this post statement in the console of the browser, or on postman:
+        ```fetch("http://localhost:8000/optimize?n_trials=50", {method: "POST"}).then(res => res.json()).then(console.log).catch(console.error);```
+
+
 ### Significance
 So what's the significance of the results? Well for now:
 - Predicted Points is the Predicted Points total for your player, against the opponent you selected.

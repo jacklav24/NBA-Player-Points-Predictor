@@ -18,7 +18,7 @@ from feature_engineering import preprocess_player_df, engineer_features
 FEATURE_COLUMNS = ['Home', 
     'Pace', 'eFG%_y', 'TOV%', 'DRB%',
     'PTS_last_5_avg', 'MP_last_5_avg', 'PTS_trend_5',
-    'PTS_vol_5', 'PTS_per_min', 'def_adj', 'Days_of_rest'
+    'PTS_vol_5', 'PTS_per_min', 'def_adj', #'Days_of_rest'
 ]
 
 def read_misc_stats(filepath):

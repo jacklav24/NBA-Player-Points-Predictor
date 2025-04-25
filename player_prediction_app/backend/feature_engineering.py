@@ -4,15 +4,19 @@ from sklearn.model_selection import train_test_split
 
 # Keywords indicating Did Not Play
 DNP_KEYWORDS = {'Inactive', 'Did Not Play', 'Did Not Dress', 'Not With Team', ''}
+
 SHOOTING_STATS = {
     'FG%': 'FGA',   # Field Goal %
     '3P%': '3PA',   # 3-Point %
     '2P%': '2PA',   # 2-Point %
     'FT%': 'FTA'    # Free Throw %
 }
+
+# converts minutes played from 00:00 format to minutes (with decimal)
 def convert_mp(mp):
     minutes, seconds = mp.split(':')
     return int(minutes) + int(seconds) / 60
+
 
 
 def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_name: str) -> pd.DataFrame:
@@ -21,14 +25,20 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     - Parses dates, converts MP string→float, filters out DNPs.
     - Merges opponent team defensive stats.
     """
+    
     df = df.copy()
     df["Player"] = player_name
+    
+    # merge player game logs with opposing team's defensive stats
     merged = df.merge(team_stats_df, left_on='Opp', right_on='Team', how='left')
+    
     # Parse date
     merged['Date'] = pd.to_datetime(merged['Date'], errors='coerce')
     
     # Flag home games
     merged['Home'] = merged['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
+    
+    # drop games where 
     merged = merged[merged['MP'].notna() & (merged['MP'] != '') & (merged["MP"] != 'Inactive') & (merged["MP"] != 'Did Not Play') & (merged["MP"] != 'Did Not Dress') & (merged["MP"] != 'Not With Team')]
     # Convert MP to minutes float
     merged['MP'] = merged['MP'].apply(lambda x: convert_mp(x) if isinstance(x, str) else 0)
@@ -89,7 +99,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Days of rest
     last_played = out.groupby('Player')['Date'].shift(1)
-    out['Days_of_rest'] = (out['Date'] - last_played).dt.days.fillna(0)
+    # out['Days_of_rest'] = (out['Date'] - last_played).dt.days.fillna(0)
 
     return out
 
@@ -103,7 +113,7 @@ def get_train_test_splits(feat_df: pd.DataFrame):
     features = [
         'Home', 'Pace', 'eFG%_y', 'TOV%', 'DRB%',
         'PTS_last_5_avg', 'MP_last_5_avg', 'PTS_trend_5',
-        'PTS_vol_5', 'PTS_per_min', 'def_adj', 'Days_of_rest'
+        'PTS_vol_5', 'PTS_per_min', 'def_adj', #'Days_of_rest'
     ]
     y = feat_df['PTS']
     X = feat_df[features]
@@ -112,7 +122,7 @@ def get_train_test_splits(feat_df: pd.DataFrame):
 FEATURE_COLUMNS = [
     'Home', 'Pace', 'eFG%_y', 'TOV%', 'DRB%',
     'PTS_last_5_avg', 'MP_last_5_avg', 'PTS_trend_5',
-    'PTS_vol_5', 'PTS_per_min', 'def_adj', 'Days_of_rest'
+    'PTS_vol_5', 'PTS_per_min', 'def_adj', #'Days_of_rest'
 ]
 
 def prep_game(
@@ -178,7 +188,7 @@ def prep_game(
         'PTS_vol_5':      vol_5,
         'PTS_per_min':    eff_ewm,
         'def_adj':        def_adj,
-        'Days_of_rest':   days_rest
+        #'Days_of_rest':   days_rest
     }
 
     # 5) Return as a 1×N DataFrame in the exact order the model expects

@@ -4,11 +4,16 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+from sklearn.discriminant_analysis import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import root_mean_squared_error
+from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 import optuna as op
 import joblib
+import player_data_setup as setup
+import feature_engineering as fe
+from constants import COLUMNS_TO_SCALE
 
 
 CSV_COLUMNS = [
@@ -17,8 +22,11 @@ CSV_COLUMNS = [
     ]
 CSV_PATH = Path(__file__).parent / "data" / "optimization" / "model_runs.csv"
 
-def run_studies(X_train, y_train, X_test, y_test, n_trials: int = 50):
+def run_studies(X, scaler, n_trials: int = 50):
+    
     ''' Runs studies on the hyperparameters of xgb and rfr and returns the study results '''
+    X_train, X_test, y_train, y_test = fe.get_train_test_splits(X)
+    
     study_rfr, study_xgb = optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials)
     best_rfr = study_rfr.best_params
     best_xgb = study_xgb.best_params
@@ -27,7 +35,11 @@ def run_studies(X_train, y_train, X_test, y_test, n_trials: int = 50):
 
 
 def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, ):
-
+    scaler = StandardScaler()
+    
+    Xs_train = setup.scale_columns(scaler, X_train.copy(), fitting=True)
+    Xs_test  = setup.scale_columns(scaler, X_test.copy(),  fitting=False)
+    
     # RFR objective
     def obj_rfr(trial):
         params = {
@@ -39,8 +51,8 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
             "random_state": 42, "n_jobs": -1
         }
         rfr_model = RandomForestRegressor(**params)
-        rfr_model.fit(X_train, y_train)
-        preds = rfr_model.predict(X_test)
+        rfr_model.fit(Xs_train, y_train)
+        preds = rfr_model.predict(Xs_test)
         return root_mean_squared_error(y_test, preds)
 
     # XGB objective
@@ -58,9 +70,9 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
             "random_state": 42, "n_jobs": -1
         }
         xgb_model = XGBRegressor(**params)
-        xgb_model.fit(X_train, y_train, eval_set=[(X_test,y_test)],
+        xgb_model.fit(Xs_train, y_train, eval_set=[(Xs_test,y_test)],
             verbose=False)
-        preds = xgb_model.predict(X_test)
+        preds = xgb_model.predict(Xs_test)
         return root_mean_squared_error(y_test, preds)
 
 
@@ -120,8 +132,8 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
     
     # print("Best RF params:", study_rfr.best_params)
     # print("Best XGB params:", study_xgb.best_params)
-    # print("Best RF RMSE :", study_rfr.best_value)
-    # print("Best XGB RMSE :", study_xgb.best_value)
+    print("Best RF RMSE :", study_rfr.best_value)
+    print("Best XGB RMSE :", study_xgb.best_value)
 
     return study_rfr, study_xgb
 

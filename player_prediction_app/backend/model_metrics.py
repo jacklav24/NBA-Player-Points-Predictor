@@ -1,3 +1,4 @@
+import ast
 import json
 from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -12,7 +13,7 @@ import joblib
 
 CSV_COLUMNS = [
     "run_id", "timestamp",
-    "features", "scaled_features", "metrics", "save",
+    "features", "scaled_features", "metrics", "feature_importance", "save",
     ]
 CSV_PATH = Path(__file__).parent / "data" / "optimization" / "model_runs.csv"
 
@@ -124,17 +125,18 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
 
     return study_rfr, study_xgb
 
-def save_runs(run):
+def save_run(run):
     
     # (1) compute exactly as before...
 
     entry = {
-      "run_id":    run["id"],
-      "timestamp": run["date"],
-      "features": run["features"],
-      "scaled_features": run["scaled_features"],
-      "metrics" : run["metrics"],
-      "save" : run["save"],
+      "run_id":            run["id"],
+      "timestamp":         run["date"],
+      "features":          json.dumps(run["features"]),
+      "scaled_features":   json.dumps(run["scaled_features"]),
+      "metrics":           json.dumps(run["metrics"]),
+      "feature_importance": json.dumps(run["feature_importance"]),
+      "save":              run["save"],
     }
 
     # ensure CSV exists with header
@@ -149,7 +151,25 @@ def get_runs():
     
 
     df = pd.read_csv(CSV_PATH)
-    df = df[df['save'] == 'True'] 
-    print(len(df))
+    df['save'] = df['save'].fillna(False).astype(bool)
+    df = df[df['save']]
     # turn it into a list of row‐dicts
+    
     return df.to_dict(orient="records")
+
+def get_run(runId):
+    df = pd.read_csv(CSV_PATH)
+    matched = df[df["run_id"] == runId]
+    if matched.empty:
+        return None
+    run = matched.to_dict(orient="records")[0]
+
+    for field in ("features","scaled_features","metrics","feature_importance"):
+        raw = run.get(field)
+        if isinstance(raw, str):
+            try:
+                run[field] = json.loads(raw)
+            except json.JSONDecodeError:
+                run[field] = ast.literal_eval(raw)
+
+    return run

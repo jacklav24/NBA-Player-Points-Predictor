@@ -7,24 +7,21 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
   //   typeof val === "number" && isFinite(val) ? val.toFixed(2) : "—";
   const format = (val, metric) => {
     if (typeof val !== "number" || !isFinite(val)) return "—";
-    if (metric === "within_n") return (val * 100).toFixed(0) + "%"; // 0.87 -> "87%"
+    if (metric === "within_n") return (val * 100).toFixed(0) + "%";
     return val.toFixed(2);
   };
+
   const models = [
     { key: "rfr", label: "Random Forest" },
     { key: "xgb", label: "XGBoost" },
     { key: "stacked", label: "Stacked" },
   ];
-  // const metricKeys = ["mae", "rmse", "r2", "bias"];
   const metricKeys = ["mae", "rmse", "r2", "bias", "within_n"];
   const suffixes = ["_g", "_i", "_b"];
 
-
-
-
   const getColorHSL = (value, values, metric) => {
-    if (typeof value !== 'number') {
-      return { bg: 'hsl(220, 10%, 15%)', text: '#ccc' };
+    if (typeof value !== "number") {
+      return { bg: "hsl(220, 10%, 15%)", text: "#ccc" };
     }
   
     // Define fixed reference ranges for specific metrics
@@ -145,8 +142,9 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
             {metricKeys.map((metric) => {
               const rowValues = models.flatMap(({ key }) =>
                 suffixes.map((suffix) => {
-                  const hasData = suffix === "_g" || playerPredicted;
-                  const raw = metrics[`${key}_${metric}${suffix}`];
+                  const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
+                  const hasData = raw !== null;
+                  // const raw = metrics[`${key}_${metric}${suffix}`];
                   return hasData && typeof raw === "number" ? raw : null;
                 })
               );
@@ -156,9 +154,9 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
                   <td className="px-2 py-3 text-gray-300 uppercase font-bold text-xl">{metric === "r2" ? "r²" : metric}</td>
                   {models.flatMap(({ key }, modelIdx) =>
                     suffixes.map((suffix, suffixIdx) => {
-                      const hasData = suffix === "_g" || playerPredicted;
-                      // const raw = metrics[`${key}_${metric}${suffix}`];
                       const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
+                      const hasData = raw !== null;
+                      // const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
                       const val = hasData ? format(raw, metric) : "—";
                       const { bg, text } = getColorHSL(
                         hasData ? raw : null,

@@ -10,20 +10,137 @@
 # See the GNU General Public License for more details.
 # <https://www.gnu.org/licenses/>.
 
+# from datetime import datetime
+# from uuid import uuid4
+# from fastapi import BackgroundTasks, FastAPI, HTTPException
+# from fastapi.middleware.cors import CORSMiddleware
+# import numpy as np
+# from pydantic import BaseModel
+
+# import joblib
+
+# from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
+# import json
+# from pathlib import Path
+# import model_metrics as mm
+
+
+# from model_logic import (
+#     load_players_data,
+#     get_player_list,
+#     get_team_list,
+#     get_opponent_list,
+#     train_model,
+#     predict_points,
+# )
+# import player_data_setup as setup
+
+# from constants import FEATURE_COLUMNS, COLUMNS_TO_SCALE
+# # from feature_engineering import engineer_features, get_train_test_splits
+
+# app = FastAPI()
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["http://localhost:5173"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# # In‐memory cache for individual models
+# _indiv_model_cache = {}  # key: (player,team) → (rfr_model, xgb_model, stacked_model, scaler, X)
+# player = None
+# team = None
+# global rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
+
+# rfr_model_i       = None
+# xgb_model_i       = None
+# stacked_model_i   = None
+# scaler_i          = None
+# X_i               = None
+# X_train_i         = None
+# X_test_i          = None
+# y_train_i         = None
+# y_test_i          = None
+# xgb_imp_g         = None
+# rrf_imp_i         = None
+# X_test = None
+# y_test = None
+# Xs_test = None
+
+# MODEL_DIR = Path(__file__).parent / "data" / "models"
+# MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+# def load_global_models():
+#     try:
+#         rfr = joblib.load(MODEL_DIR / "rfr_global.pkl")
+#         xgb = joblib.load(MODEL_DIR / "xgb_global.pkl")
+#         stk = joblib.load(MODEL_DIR / "stacked_global.pkl")
+#         scaler = joblib.load(MODEL_DIR / "scaler_global.pkl")
+#         X = joblib.load(MODEL_DIR / "X_global.pkl")
+#         # also load your test splits / metrics if you like
+#         return rfr, xgb, stk, scaler, X
+#     except FileNotFoundError:
+#         return None, None, None, None, None
+
+# rfr_model, xgb_model, stacked_model, scaler, X = load_global_models()
+
+# config_dir   = Path(__file__).parent / "data/optimization"
+# with open(config_dir / "rfr_params.json") as f:
+#     rfr_params = json.load(f)
+# with open(config_dir / "xgb_params.json") as f:
+#     xgb_params = json.load(f)
+    
+# # Load and train on startup
+# print("[INFO] Loading data…")
+# players_data, team_stats, all_teams = load_players_data()
+# # models will be None until you POST /train_global
+
+
+# # train global models
+
+# Xs_test = X_test.copy()
+# Xs_test = setup.scale_columns(scaler, X_test, False)
+
+# rfr_model_i = None
+# xgb_model_i = None
+# stacked_model_i = None
+# # predictions on global test set
+# rfr_gy_pred     = rfr_model.predict(Xs_test)
+# xgb_gy_pred     = xgb_model.predict(Xs_test)
+# stacked_gy_pred = stacked_model.predict(Xs_test)
+
+# # 1) Compute global metrics
+# rfr_g_mae, rfr_g_rmse = mean_absolute_error(y_test, rfr_gy_pred), root_mean_squared_error(y_test, rfr_gy_pred)
+# xgb_g_mae, xgb_g_rmse = mean_absolute_error(y_test, xgb_gy_pred), root_mean_squared_error(y_test, xgb_gy_pred)
+# stk_g_mae, stk_g_rmse = mean_absolute_error(y_test, stacked_gy_pred), root_mean_squared_error(y_test, stacked_gy_pred)
+
+# # 2) Additional stats
+# rfr_g_r2   = r2_score(y_test, rfr_gy_pred)
+# rfr_g_bias = float((rfr_gy_pred - y_test).mean())
+
+# # 3) Feature importances
+# rfr_imp_g = { feat: float(imp) for feat, imp in zip(X.columns, rfr_model.feature_importances_) }
+# xgb_imp_g = { feat: float(imp) for feat, imp in zip(X.columns, xgb_model.feature_importances_) }
+
+# # 4) Residuals / actuals / predictions (stacked model)
+# residuals   = [ float(err) for err in (y_test - stacked_gy_pred) ]
+# actuals     = [ float(a)   for a   in y_test           ]
+# predictions = [ float(p)   for p   in stacked_gy_pred ]
+
+# print("[INFO] Global model ready.")
 from datetime import datetime
 from uuid import uuid4
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 from pydantic import BaseModel
-
 import joblib
-
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
 import json
 from pathlib import Path
 import model_metrics as mm
-
 
 from model_logic import (
     load_players_data,
@@ -34,12 +151,9 @@ from model_logic import (
     predict_points,
 )
 import player_data_setup as setup
-
 from constants import FEATURE_COLUMNS, COLUMNS_TO_SCALE
-# from feature_engineering import engineer_features, get_train_test_splits
 
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -48,66 +162,166 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In‐memory cache for individual models
-_indiv_model_cache = {}  # key: (player,team) → (rfr_model, xgb_model, stacked_model, scaler, X)
+# Load static data
+players_data, team_stats, all_teams = load_players_data()
+
+# Model storage directory
+MODEL_DIR = Path(__file__).parent / "data" / "models"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+# Global model placeholders
+rfr_model = xgb_model = stacked_model = scaler = X = None
+X_train = X_test = y_train = y_test = Xs_test = None
+
+# In-memory cache for individual models
 player = None
 team = None
-global rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
+_indiv_model_cache = {}
 
-rfr_model_i       = None
-xgb_model_i       = None
-stacked_model_i   = None
-scaler_i          = None
-X_i               = None
-X_train_i         = None
-X_test_i          = None
-y_train_i         = None
-y_test_i          = None
-xgb_imp_g         = None
-rrf_imp_i         = None
-
-config_dir   = Path(__file__).parent / "data/optimization"
+# Load hyperparameter configs
+config_dir = Path(__file__).parent / "data" / "optimization"
 with open(config_dir / "rfr_params.json") as f:
     rfr_params = json.load(f)
 with open(config_dir / "xgb_params.json") as f:
     xgb_params = json.load(f)
+
+# Utility to recompute metrics after training
+def recompute_global_metrics():
+    global rfr_gy_pred, xgb_gy_pred, stacked_gy_pred
+    global rfr_g_mae, rfr_g_rmse, xgb_g_mae, xgb_g_rmse, stk_g_mae, stk_g_rmse
+
+    rfr_gy_pred = rfr_model.predict(Xs_test)
+    xgb_gy_pred = xgb_model.predict(Xs_test)
+    stacked_gy_pred = stacked_model.predict(Xs_test)
+
+    rfr_g_mae = mean_absolute_error(y_test, rfr_gy_pred)
+    rfr_g_rmse = root_mean_squared_error(y_test, rfr_gy_pred)
+    xgb_g_mae = mean_absolute_error(y_test, xgb_gy_pred)
+    xgb_g_rmse = root_mean_squared_error(y_test, xgb_gy_pred)
+    stk_g_mae  = mean_absolute_error(y_test, stacked_gy_pred)
+    stk_g_rmse = root_mean_squared_error(y_test, stacked_gy_pred)
+
+def load_global_models():
+    try:
+        rfr    = joblib.load(MODEL_DIR / "rfr_global.pkl")
+        xgb    = joblib.load(MODEL_DIR / "xgb_global.pkl")
+        stk    = joblib.load(MODEL_DIR / "stacked_global.pkl")
+        scl    = joblib.load(MODEL_DIR / "scaler_global.pkl")
+        X_all  = joblib.load(MODEL_DIR / "X_global.pkl")
+        X_t    = joblib.load(MODEL_DIR / "X_test_global.pkl")
+        y_t    = joblib.load(MODEL_DIR / "y_test_global.pkl")
+        return rfr, xgb, stk, scl, X_all, X_t, y_t
+    except FileNotFoundError:
+        return None, None, None, None, None, None, None
     
-# Load and train on startup
-print("[INFO] Loading data and training global model...")
-players_data, team_stats, all_teams = load_players_data()
+rfr_model, xgb_model, stacked_model, scaler, X, X_test, y_test = load_global_models()
 
-# train global models
-rfr_model, xgb_model, stacked_model, scaler, X, X_train, X_test, y_train, y_test = train_model(players_data, rfr_params, xgb_params)
-Xs_test = X_test.copy()
-Xs_test = setup.scale_columns(scaler, X_test, False)
+# Train global model on demand
+@app.post("/train_global")
+def train_global(n_trials: int = 50):
+    global rfr_model, xgb_model, stacked_model, scaler, X
+    global X_train, X_test, y_train, y_test, Xs_test
+    # 1) Train from scratch
+    (
+        rfr_model, xgb_model, stacked_model,
+        scaler, X,
+        X_train, X_test, y_train, y_test
+    ) = train_model(players_data, rfr_params, xgb_params)
 
-rfr_model_i = None
-xgb_model_i = None
-stacked_model_i = None
-# predictions on global test set
-rfr_gy_pred     = rfr_model.predict(Xs_test)
-xgb_gy_pred     = xgb_model.predict(Xs_test)
-stacked_gy_pred = stacked_model.predict(Xs_test)
+    # 2) Scale test set
+    Xs_test = setup.scale_columns(scaler, X_test.copy(), fitting=False)
 
-# 1) Compute global metrics
-rfr_g_mae, rfr_g_rmse = mean_absolute_error(y_test, rfr_gy_pred), root_mean_squared_error(y_test, rfr_gy_pred)
-xgb_g_mae, xgb_g_rmse = mean_absolute_error(y_test, xgb_gy_pred), root_mean_squared_error(y_test, xgb_gy_pred)
-stk_g_mae, stk_g_rmse = mean_absolute_error(y_test, stacked_gy_pred), root_mean_squared_error(y_test, stacked_gy_pred)
+    # 3) Compute and cache global metrics
+    recompute_global_metrics()
 
-# 2) Additional stats
-rfr_g_r2   = r2_score(y_test, rfr_gy_pred)
-rfr_g_bias = float((rfr_gy_pred - y_test).mean())
+    # 4) Persist models and data for next startup
+    joblib.dump(rfr_model, MODEL_DIR / "rfr_global.pkl")
+    joblib.dump(xgb_model, MODEL_DIR / "xgb_global.pkl")
+    joblib.dump(stacked_model, MODEL_DIR / "stacked_global.pkl")
+    joblib.dump(scaler, MODEL_DIR / "scaler_global.pkl")
+    joblib.dump(X, MODEL_DIR / "X_global.pkl")
 
-# 3) Feature importances
-rfr_imp_g = { feat: float(imp) for feat, imp in zip(X.columns, rfr_model.feature_importances_) }
-xgb_imp_g = { feat: float(imp) for feat, imp in zip(X.columns, xgb_model.feature_importances_) }
+    return {"detail": "Global model retrained"}
 
-# 4) Residuals / actuals / predictions (stacked model)
-residuals   = [ float(err) for err in (y_test - stacked_gy_pred) ]
-actuals     = [ float(a)   for a   in y_test           ]
-predictions = [ float(p)   for p   in stacked_gy_pred ]
 
-print("[INFO] Global model ready.")
+def compute_diagnostics_for_test_set(
+    X_test, y_test,
+    models,
+    individual_split=None,
+    alpha=None,
+):
+    """
+    models = {
+      'global':    (rfr_model, xgb_model, stacked_model),
+      'individual': (rfr_model_i, xgb_model_i, stacked_model_i)
+    }
+    individual_split = (X_i_test, y_i_test)
+    alpha = blend weight (0–1) for blended metrics
+    """
+    out = {'metrics':{}, 'feature_importance':{}}
+
+    # --- GLOBAL metrics & importances (suffix _g) ---
+    for tag, mdl in zip(['rfr','xgb','stacked'], models['global']):
+        preds = mdl.predict(X_test)
+        out['metrics'].update({
+          f'{tag}_mae_g':  mean_absolute_error(y_test, preds),
+          f'{tag}_rmse_g': root_mean_squared_error(y_test, preds),
+          f'{tag}_r2_g':   r2_score(y_test, preds),
+          f'{tag}_bias_g': float((preds - y_test).mean()),
+          f'{tag}_within_n_g': within_n_points(y_test, preds, n=3),
+        })
+        if tag in ('rfr','xgb'):
+            out['feature_importance'][f'{tag}_g'] = {
+              feat: float(imp)
+              for feat, imp in zip(X_test.columns, mdl.feature_importances_)
+            }
+
+    # Bail if no individual model
+    if 'individual' not in models or individual_split is None:
+        return out
+
+    rfr_i, xgb_i, stk_i = models['individual']
+    X_i_test, y_i_test   = individual_split
+
+    # --- INDIVIDUAL metrics & importances (suffix _i) ---
+    for tag, mdl in zip(['rfr','xgb','stacked'], [rfr_i, xgb_i, stk_i]):
+        preds = mdl.predict(X_i_test)
+        out['metrics'].update({
+          f'{tag}_mae_i':  mean_absolute_error(y_i_test, preds),
+          f'{tag}_rmse_i': root_mean_squared_error(y_i_test, preds),
+          f'{tag}_r2_i':   r2_score(y_i_test, preds),
+          f'{tag}_bias_i': float((preds - y_i_test).mean()),
+          f'{tag}_within_n_i': within_n_points(y_i_test, preds, n=3),
+        })
+        if tag in ('rfr','xgb'):
+            out['feature_importance'][f'{tag}_i'] = {
+              feat: float(imp)
+              for feat, imp in zip(X_i_test.columns, mdl.feature_importances_)
+            }
+
+    # --- BLENDED metrics (suffix _b) ---
+    # requires an alpha blend weight
+    if alpha is not None:
+        for tag, (ind_mdl, glob_mdl) in zip(
+            ['rfr','xgb','stacked'],
+            [(rfr_i, models['global'][0]),
+             (xgb_i, models['global'][1]),
+             (stk_i, models['global'][2])]
+        ):
+            indiv_preds = ind_mdl.predict(X_i_test)
+            glob_preds  = glob_mdl.predict(X_i_test)
+            blended     = alpha*indiv_preds + (1-alpha)*glob_preds
+
+            out['metrics'].update({
+              f'{tag}_mae_b':      mean_absolute_error(y_i_test, blended),
+              f'{tag}_rmse_b':     root_mean_squared_error(y_i_test, blended),
+              f'{tag}_r2_b':       r2_score(y_i_test, blended),
+              f'{tag}_bias_b':     float((blended - y_i_test).mean()),
+              f'{tag}_within_n_b': within_n_points(y_i_test, blended, n=3),
+            })
+            # we typically don’t have “feature_importance” for a blend
+    return out
+
 
 def run_optimization(n_trials: int = 50):
     global X_train, y_train, X_test, y_test
@@ -142,6 +356,25 @@ def within_n_points(y_true, y_pred, n=5):
     differences = np.abs(y_true - y_pred)
     return np.mean(differences <= n)  # returns percentage
 
+
+@app.post("/train_global")
+def train_global(n_trials: int = 50):
+    global rfr_model, xgb_model, stacked_model, scaler, X
+    global X_train, X_test, y_train, y_test
+    # Train models
+    (rfr_model, xgb_model, stacked_model,
+     scaler, X,
+     X_train, X_test, y_train, y_test) = train_model(players_data, rfr_params, xgb_params)
+    # Persist artifacts
+    joblib.dump(rfr_model,   MODEL_DIR / "rfr_global.pkl")
+    joblib.dump(xgb_model,   MODEL_DIR / "xgb_global.pkl")
+    joblib.dump(stacked_model, MODEL_DIR / "stacked_global.pkl")
+    joblib.dump(scaler,      MODEL_DIR / "scaler_global.pkl")
+    joblib.dump(X,           MODEL_DIR / "X_global.pkl")
+    joblib.dump(X_test,      MODEL_DIR / "X_test_global.pkl")
+    joblib.dump(y_test,      MODEL_DIR / "y_test_global.pkl")
+    recompute_global_metrics()
+    return {"detail": "Global model trained and persisted"}
 
 
 @app.post("/optimize")
@@ -251,9 +484,6 @@ def run_global_prediction(payload: PredictionRequest):
 def run_all_prediction(payload: PredictionRequest):
     global player, team, rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
     global Xs_test, player, team, scaler_i
-    rfr_p_g = rfr_model.predict(Xs_test)
-    xgb_p_g = xgb_model.predict(Xs_test)
-    stk_p_g = stacked_model.predict(Xs_test)
     player, team = payload.player_name, payload.team
     key = (player, team)
     
@@ -299,41 +529,38 @@ def run_all_prediction(payload: PredictionRequest):
           "xgb":     α*xgb_pred_i["predicted_points"]    + (1-α)*xgb_pred_g["predicted_points"],
           "stacked": α*stacked_pred_i["predicted_points"]+ (1-α)*stacked_pred_g["predicted_points"],
         }
-        
-        
+        Xs_test_i = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+
+        diagnostics = compute_diagnostics_for_test_set(
+                Xs_test, y_test,
+                models={
+                    'global':    (rfr_model, xgb_model, stacked_model),
+                    'individual':(rfr_model_i, xgb_model_i, stacked_model_i)
+                },
+                individual_split=(Xs_test_i, y_test_i),
+                alpha=α
+                )
+
+
+        # 4) build your run record
         run = {
-        "id": str(uuid4()),  
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "id":       str(uuid4()),
+        "date":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "features": FEATURE_COLUMNS,
         "scaled_features": COLUMNS_TO_SCALE,
-        "metrics": {
-            "rfr_mae_g":  mean_absolute_error(y_test, rfr_p_g),
-            "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
-            "rfr_r2_g":   r2_score(y_test, rfr_p_g),
-            "rfr_bias_g": float((rfr_p_g - y_test).mean()),
-            "rfr_within_n_g": within_n_points(y_test, rfr_p_g, n=3),
+        "metrics": diagnostics["metrics"],
+        "feature_importance": diagnostics["feature_importance"],
+        "save": payload.save_run
+        }
 
-            "xgb_mae_g":  mean_absolute_error(y_test, xgb_p_g),
-            "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
-            "xgb_r2_g":   r2_score(y_test, xgb_p_g),
-            "xgb_bias_g": float((xgb_p_g - y_test).mean()),
-            "xgb_within_n_g": within_n_points(y_test, xgb_p_g, n=3),
+        
+        mm.save_run(run)
 
-            "stacked_mae_g":  mean_absolute_error(y_test, stk_p_g),
-            "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
-            "stacked_r2_g":   r2_score(y_test, stk_p_g),
-            "stacked_bias_g": float((stk_p_g - y_test).mean()),
-            "stacked_within_n_g": within_n_points(y_test, stk_p_g, n=3),
-            }
-        } 
-        run['save'] = payload.save_run
-        print(payload.save_run, "save run payload")
-        mm.save_runs(run)
-        # --- 5) Return all three sets side by side ---
+        # 5) return predictions as JSON
         return {
-          "global_model":     {"rfr": rfr_pred_g,     "xgb": xgb_pred_g,     "stacked": stacked_pred_g},
-          "individual_model": {"rfr": rfr_pred_i,      "xgb": xgb_pred_i,      "stacked": stacked_pred_i},
-          "blended_model":    {"rfr": round(blended["rfr"],2), 
+        "global_model":     {"rfr": rfr_pred_g, "xgb": xgb_pred_g, "stacked": stacked_pred_g},
+        "individual_model": {"rfr": rfr_pred_i, "xgb": xgb_pred_i, "stacked": stacked_pred_i},
+        "blended_model":    {"rfr": round(blended["rfr"],2), 
                                 "xgb": round(blended["xgb"],2), 
                                 "stacked": round(blended["stacked"],2),
                                 "alpha": round(α, 2)}
@@ -347,122 +574,110 @@ def run_all_prediction(payload: PredictionRequest):
 # Model Info Endpoints
 
 
+# @app.get("/model_insights")
+# def model_insights():
+#     global rfr_model, xgb_model, stacked_model, scaler, X, X_test, y_test, Xs_test, player, team
+#     # If artifacts missing, load or train automatically
+#     if rfr_model is None or X_test is None:
+#         # try loading again
+#         loaded = load_global_models()
+#         if loaded[0] is None:
+#             # no persisted model: train now
+#             train_global()
+#         else:
+#             rfr_model, xgb_model, stacked_model, scaler, X, X_test, y_test = loaded
+#             recompute_global_metrics()
+#     if Xs_test is None:
+#         recompute_global_metrics()
+#     diagnostics = compute_diagnostics_for_test_set(
+#         Xs_test, y_test,
+#         models={"global": (rfr_model, xgb_model, stacked_model)},
+#         individual_split=None, alpha=None
+#     )
+#     # include individual if cached
+#     key = (player, team)
+#     if key in _indiv_model_cache:
+#         (
+#           rfr_i, xgb_i, stk_i,
+#           scaler_i, X_i,
+#           X_train_i, X_test_i,
+#           y_train_i, y_test_i
+#         ) = _indiv_model_cache[key]
+
+#         # scale the individual test set
+#         Xs_i_test = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+
+#         extra = compute_diagnostics_for_test_set(
+#             Xs_test,      y_test,
+#             models={
+#               "global":     (rfr_model, xgb_model, stacked_model),
+#               "individual": (rfr_i, xgb_i, stk_i)
+#             },
+#             individual_split=(Xs_i_test, y_test_i),
+#             alpha=(len(X_test_i)/30)/(1 + len(X_test_i)/30)
+#         )
+#         # merge in the individual/blended pieces
+#         diagnostics["metrics"].update(extra["metrics"])
+#         diagnostics["feature_importance"].update(extra["feature_importance"])
+
+#     return diagnostics
+
 @app.get("/model_insights")
 def model_insights():
-    """
-    Returns metrics and feature importances for the global models,
-    and—if an individual model has been trained for the last queried player/team—
-    metrics for the individual and blended models as well.
-    """
-    # --- 1) Compute global metrics on the original full dataset's hold-out set ---
-    # Scale the global test set (from initial train_test_split on full_df)
-    
-    # Predictions from global models on that global hold-out
-    global Xs_test, player, team, scaler_i
-    rfr_p_g = rfr_model.predict(Xs_test)
-    xgb_p_g = xgb_model.predict(Xs_test)
-    stk_p_g = stacked_model.predict(Xs_test)
-    
-    # Build base output with global metrics
-    out = {
-        "metrics": {
-            "rfr_mae_g":  mean_absolute_error(y_test, rfr_p_g),
-            "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
-            "rfr_r2_g":   r2_score(y_test, rfr_p_g),
-            "rfr_bias_g": float((rfr_p_g - y_test).mean()),
-            "rfr_within_n_g": within_n_points(y_test, rfr_p_g, n=3),
+    # Declare globals
+    global rfr_model, xgb_model, stacked_model, scaler, X, X_test, y_test, Xs_test, player, team
 
-            "xgb_mae_g":  mean_absolute_error(y_test, xgb_p_g),
-            "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
-            "xgb_r2_g":   r2_score(y_test, xgb_p_g),
-            "xgb_bias_g": float((xgb_p_g - y_test).mean()),
-            "xgb_within_n_g": within_n_points(y_test, xgb_p_g, n=3),
+    # Ensure models and test splits are loaded
+    if rfr_model is None or X_test is None or y_test is None:
+        loaded = load_global_models()
+        if loaded[0] is None:
+            # No persisted artifacts: train now
+            train_global()
+        else:
+            rfr_model, xgb_model, stacked_model, scaler, X, X_test, y_test = loaded
 
-            "stacked_mae_g":  mean_absolute_error(y_test, stk_p_g),
-            "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
-            "stacked_r2_g":   r2_score(y_test, stk_p_g),
-            "stacked_bias_g": float((stk_p_g - y_test).mean()),
-            "stacked_within_n_g": within_n_points(y_test, stk_p_g, n=3),
-        },
-        "feature_importance": {
-            "rfr_g": rfr_imp_g,
-            "xgb_g": xgb_imp_g
-        }
-    }
+    # Recompute scaled test set if needed
+    if Xs_test is None:
+        recompute_global_metrics()
 
-    # --- 2) Check if we have an individual model cached ---
+    # After this point, Xs_test, y_test, and models should be valid
+    diagnostics = compute_diagnostics_for_test_set(
+        Xs_test, y_test,
+        models={"global": (rfr_model, xgb_model, stacked_model)},
+        individual_split=None, alpha=None
+    )
+
+    # Include individual/blended if available
     key = (player, team)
-    if key not in _indiv_model_cache:
-        return out
+    if key in _indiv_model_cache:
+        rfr_i, xgb_i, stk_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i = _indiv_model_cache[key]
+        Xs_i_test = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+        extra = compute_diagnostics_for_test_set(
+            Xs_i_test, y_test_i,
+            models={
+                "global": (rfr_model, xgb_model, stacked_model),
+                "individual": (rfr_i, xgb_i, stk_i)
+            },
+            individual_split=(Xs_i_test, y_test_i),
+            alpha=(len(X_test_i)/30)/(1 + len(X_test_i)/30)
+        )
+        diagnostics["metrics"].update(extra["metrics"])
+        diagnostics["feature_importance"].update(extra["feature_importance"])
 
-    # --- 3) Unpack individual model and its test split ---
-    (
-        rfr_i, xgb_i, stk_i,
-        scaler_i, X_i,
-        X_train_i, X_test_i,
-        y_train_i, y_test_i
-    ) = _indiv_model_cache[key]
-
-    # --- 4) Compute individual predictions and metrics on that player's hold-out ---
-    Xs_indiv = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
-    rfr_p_i = rfr_i.predict(Xs_indiv)
-    xgb_p_i = xgb_i.predict(Xs_indiv)
-    stk_p_i = stk_i.predict(Xs_indiv)
-    out["metrics"].update({
-        "rfr_mae_i":  mean_absolute_error(y_test_i, rfr_p_i),
-        "rfr_rmse_i": root_mean_squared_error(y_test_i, rfr_p_i),
-        "rfr_r2_i":   r2_score(y_test_i, rfr_p_i),
-        "rfr_bias_i": float((rfr_p_i - y_test_i).mean()),
-        "rfr_within_n_i": within_n_points(y_test_i, rfr_p_i, n=3),
-
-        "xgb_mae_i":  mean_absolute_error(y_test_i, xgb_p_i),
-        "xgb_rmse_i": root_mean_squared_error(y_test_i, xgb_p_i),
-        "xgb_r2_i":   r2_score(y_test_i, xgb_p_i),
-        "xgb_bias_i": float((xgb_p_i - y_test_i).mean()),
-        "xgb_within_n_i": within_n_points(y_test_i, xgb_p_i, n=3),
-
-
-        "stacked_mae_i":  mean_absolute_error(y_test_i, stk_p_i),
-        "stacked_rmse_i": root_mean_squared_error(y_test_i, stk_p_i),
-        "stacked_r2_i":   r2_score(y_test_i, stk_p_i),
-        "stacked_bias_i": float((stk_p_i - y_test_i).mean()),
-        "stacked_within_n_i": within_n_points(y_test_i, stk_p_i, n=3),
-
-    })
-
-    rfr_imp_i = { feat: float(imp) for feat, imp in zip(X_i.columns, rfr_model_i.feature_importances_) }
-    xgb_imp_i = { feat: float(imp) for feat, imp in zip(X_i.columns, xgb_model_i.feature_importances_) }
-    out["feature_importance"].update({"rfr_i": rfr_imp_i,
-            "xgb_i": xgb_imp_i})
-
-    # --- 5) Compute blended metrics: use the individual's hold-out, but global preds from that same set ---
-    N = len(X_test_i) + len(X_train_i)
-    THRESHOLD = 30   
-    alpha = (N/30) / (1 + N/30)
-    global_on_indiv = {
-        'rfr':  rfr_model.predict(Xs_indiv),
-        'xgb':  xgb_model.predict(Xs_indiv),
-        'stacked': stacked_model.predict(Xs_indiv)
-    }
-    indiv_preds = {'rfr': rfr_p_i, 'xgb': xgb_p_i, 'stacked': stk_p_i}
-
-    for m in ['rfr', 'xgb', 'stacked']:
-        blended = alpha * indiv_preds[m] + (1 - alpha) * global_on_indiv[m]
-        out["metrics"].update({
-            f"{m}_mae_b":  mean_absolute_error(y_test_i, blended),
-            f"{m}_rmse_b": root_mean_squared_error(y_test_i, blended),
-            f"{m}_r2_b":   r2_score(y_test_i, blended),
-            f"{m}_bias_b": float((blended - y_test_i).mean()),
-            f"{m}_within_n_b" : within_n_points(y_test_i, blended, n=3),
-        })
-    
-
-    return out
+    return diagnostics
 
 @app.get("/get_runs")
 def get_runs():
     return mm.get_runs()
 
+@app.get("/run-history/{runId}")
+def get_run_details(runId: str):
+    print(f"getting run details for {runId}")
+    run = mm.get_run(runId)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run
+    
 #  FUTURE POTENTIAL ENDPOINTS
 
 # @app.get("/tuning_results")

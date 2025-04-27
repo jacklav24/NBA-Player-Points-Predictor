@@ -18,7 +18,22 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     efficiency and contextual features.
     """
     out = df.sort_values(['Player', 'Date']).copy()
-
+    
+    for col in ['PTS','FGA','FTA','TOV','DRtg','Pace',
+                'eFG%_y','TOV%','DRB%']:
+        out[col] = pd.to_numeric(out[col], errors='coerce').fillna(0)
+    
+    last_played = out.groupby('Player')['Date'].shift(1)
+    out['Days_of_rest'] = (out['Date'] - last_played).dt.days.fillna(0)
+    out = out[out['MP'].notna() & (out['MP'] != '') & (out["MP"] != 'Inactive') & (out["MP"] != 'Did Not Play') & (out["MP"] != 'Did Not Dress') & (out["MP"] != 'Not With Team')]
+    out["MP"] = pd.to_numeric(out["MP"], errors='coerce').fillna(0)
+    
+    out['month']     = out['Date'].dt.month
+    out['month_sin'] = np.sin(2*np.pi*out['month']/12)
+    out['month_cos'] = np.cos(2*np.pi*out['month']/12)
+    out.drop(columns=['month'], inplace=True)
+    
+    out['is_back2back'] = (out['Days_of_rest'] == 1).astype(int)
     # Rolling aggregates
     out['PTS_last_5_avg'] = out['PTS'].rolling(ROLLING_TREND_WINDOW, min_periods=1).mean()
     out['MP_last_5_avg']  = out['MP'].rolling(ROLLING_TREND_WINDOW, min_periods=1).mean()
@@ -41,11 +56,8 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     # Opponent adjustment: league avg DRtg vs opp
     league_avg = out['DRtg'].mean()
     out['def_adj'] = out['PTS_last_5_avg'] * (league_avg / out['DRtg'])
-
-    # Days of rest
-    last_played = out.groupby('Player')['Date'].shift(1)
-    # out['Days_of_rest'] = (out['Date'] - last_played).dt.days.fillna(0)
-
+    out['usage_rate'] = (out['FGA'] + 0.44*out['FTA'] + out['TOV']) / out['MP']
+        
     return out
 
 
@@ -83,6 +95,7 @@ def prep_game(
       4. Fetch opponent stats and assemble a new 1×len(FEATURE_COLUMNS) row.
     """
     is_home_game = 1 if home == "Home" else 0
+
   
     # 1) Grab the last 10 real games (or fewer if <10 exist)
     last_n = raw_player_df.tail(10)
@@ -110,6 +123,20 @@ def prep_game(
     opp = team_stats_df.loc[team_stats_df['Team']==opponent].iloc[0]
     league_avg = team_stats_df['DRtg'].mean()
     def_adj    = pts_avg * (league_avg / opp['DRtg'])
+    
+    fga_sum = last_n['FGA'].sum()
+    fta_sum = last_n['FTA'].sum()
+    tov_sum = last_n['TOV'].sum()
+    mp_sum  = last_n['MP'].sum() or 1e-6
+    usage_rate = (fga_sum + 0.44 * fta_sum + tov_sum) / mp_sum
+    
+    last_month = int(last_n['Date'].iloc[-1].month)
+    month_sin  = np.sin(2 * np.pi * last_month / 12)
+    month_cos  = np.cos(2 * np.pi * last_month / 12)
+    
+    last_game_date = raw_player_df['Date'].max()
+    today = pd.Timestamp.today().normalize()
+    is_back2back = 1 if (today - last_game_date).days == 1 else 0
 
     # Build the one-row DataFrame, using whatever features you like
     vals = {
@@ -125,6 +152,10 @@ def prep_game(
         "PTS_per_min":    eff_ewm,
         "def_adj":        def_adj,
         "Days_of_rest":   days_rest,
+        "usage_rate": usage_rate,
+        "month_sin" : month_sin,
+        "month_cos" : month_cos,
+        "is_back2back": is_back2back,
     }
     
     # filter to only the features being utilized

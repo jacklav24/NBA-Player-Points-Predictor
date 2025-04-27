@@ -12,6 +12,7 @@
 
 import pandas as pd
 import numpy as np
+import re
 
 from constants import TARGET_COLUMN, FEATURE_COLUMNS, COLUMNS_TO_SCALE
 
@@ -40,6 +41,12 @@ def convert_mp(mp):
     return int(minutes) + int(seconds) / 60
 
 
+def safe_convert_mp(x):
+    # only convert when it’s a string like “00:00” or “5:23”
+    if isinstance(x, str) and re.fullmatch(r'\d{1,2}:\d{2}', x):
+        return convert_mp(x)
+    return x
+    
 def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_name: str) -> pd.DataFrame:
     """
     Raw CSV → merged, cleaned DataFrame ready for feature engineering.
@@ -60,9 +67,9 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     merged['Home'] = merged['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
     
     # drop games where 
-    merged = merged[merged['MP'].notna() & (merged['MP'] != '') & (merged["MP"] != 'Inactive') & (merged["MP"] != 'Did Not Play') & (merged["MP"] != 'Did Not Dress') & (merged["MP"] != 'Not With Team')]
+    
     # Convert MP to minutes float
-    merged['MP'] = merged['MP'].apply(lambda x: convert_mp(x) if isinstance(x, str) else 0)
+    merged['MP'] = merged['MP'].apply(lambda x: safe_convert_mp(x) if isinstance(x, str) else 0)
 
     # Numeric coercion
     merged['PTS'] = pd.to_numeric(merged['PTS'], errors='coerce').fillna(0)
@@ -81,9 +88,8 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
         
         # Fill remaining NaN (missing/invalid) with 0
         merged[pct_col] = merged[pct_col].fillna(0)
-    # Merge opponent defensive stats
-    # assert not merged.isna().any().any(), "NaNs detected!"
-    # assert not np.isinf(merged.select_dtypes(include=np.number)).any().any(), "Infs detected!"
+
+    
     return merged
 
 def scale_columns(scaler, X, fitting=False):

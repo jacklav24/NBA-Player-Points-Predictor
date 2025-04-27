@@ -1,48 +1,86 @@
 import React from "react";
 import FeatureBar from "./FeatureBar"; 
+import CombinedFeatureChart from "./CombinedFeatureChart";
 
 export default function ModelMetrics({ metrics, featureImportance, playerPredicted, }) {
-  const format = (val) =>
-    typeof val === "number" && isFinite(val) ? val.toFixed(2) : "—";
-
+  // const format = (val) =>
+  //   typeof val === "number" && isFinite(val) ? val.toFixed(2) : "—";
+  const format = (val, metric) => {
+    if (typeof val !== "number" || !isFinite(val)) return "—";
+    if (metric === "within_n") return (val * 100).toFixed(0) + "%"; // 0.87 -> "87%"
+    return val.toFixed(2);
+  };
   const models = [
     { key: "rfr", label: "Random Forest" },
     { key: "xgb", label: "XGBoost" },
     { key: "stacked", label: "Stacked" },
   ];
-  const metricKeys = ["mae", "rmse", "r2", "bias"];
+  // const metricKeys = ["mae", "rmse", "r2", "bias"];
+  const metricKeys = ["mae", "rmse", "r2", "bias", "within_n"];
   const suffixes = ["_g", "_i", "_b"];
 
+
+
+
   const getColorHSL = (value, values, metric) => {
-    if (typeof value !== "number") return { bg: "hsl(220, 10%, 15%)", text: "#ccc" };
-
-    const isHigherBetter = metric === "r2";
-    const numericValues = values.filter((v) => typeof v === "number");
-    if (numericValues.length === 0) return { bg: "hsl(220, 10%, 15%)", text: "#ccc" };
-
-    const min = Math.min(...numericValues);
-    const max = Math.max(...numericValues);
-    const range = max - min || 1;
-
-    let scale = isHigherBetter
-      ? (value - min) / range
-      : (max - value) / range;
-
-    scale = Math.max(0, Math.min(1, scale)); // clamp
-
-    const hue = scale * 120; // 0 (red) → 120 (green)
+    if (typeof value !== 'number') {
+      return { bg: 'hsl(220, 10%, 15%)', text: '#ccc' };
+    }
+  
+    // Define fixed reference ranges for specific metrics
+    const metricRanges = {
+      r2: { min: 0, max: 1 },
+      bias: null, // dynamic (around 0)
+      mae: { min: 0, max: 6 }, // Assume 0-20 reasonable error range (adjust)
+      rmse: { min: 0, max: 8 }, // Same
+      within_n: { min: 0, max: 1 }, // 0% to 100%
+    };
+  
+    const fixedRange = metricRanges[metric];
+  
+    let scale;
+    if (metric === "bias") {
+      const numericValues = values.map(v => (typeof v === 'number' ? Math.abs(v) : null)).filter(v => v !== null);
+      const max = Math.max(...numericValues, 1); // prevent 0-div
+      scale = Math.abs(value) / max;
+    } else if (fixedRange) {
+      const { min, max } = fixedRange;
+      scale = (value - min) / (max - min);
+      if (metric !== 'r2' && metric !== 'within_n') {
+        scale = 1 - scale; // For mae/rmse lower=better
+      }
+    } else {
+      // fallback dynamic scaling
+      const isHigherBetter = (metric === "r2" || metric === "within_n");
+      const numericValues = values.filter(v => typeof v === 'number');
+      if (numericValues.length === 0) {
+        return { bg: 'hsl(220, 10%, 15%)', text: '#ccc' };
+      }
+      const min = Math.min(...numericValues);
+      const max = Math.max(...numericValues);
+      const range = max - min || 1;
+      scale = isHigherBetter
+        ? (value - min) / range
+        : (max - value) / range;
+    }
+  
+    // clamp scale
+    scale = Math.max(0, Math.min(1, scale));
+  
+    // Color mapping
+    const hue = metric === 'bias' ? (1 - scale) * 120 : scale * 120;
     const saturation = 70;
-    const lightness = 35 + scale * 20; // 35–55 range
-
+    const lightness = 35 + scale * 20;
+  
     const bg = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-
+  
     const [r, g, b] = hslToRgb(hue / 360, saturation / 100, lightness / 100);
     const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-    const text = yiq >= 128 ? "#000" : "#fff";
-
+    const text = yiq >= 128 ? '#000' : '#fff';
+  
     return { bg, text };
   };
-
+  
   function hslToRgb(h, s, l) {
     let r, g, b;
     if (s === 0) {
@@ -66,7 +104,7 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
   }
 
   return (
-    <div className="max-w-7xl mx-auto mt-8">
+    <div className="max-w-8xl mx-auto mt-8">
       <hr className="border-indigo-400 mb-4" />
       <div className="overflow-x-auto">
         <table className="table-auto w-full text-sm text-gray-200 border-collapse">
@@ -119,8 +157,9 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
                   {models.flatMap(({ key }, modelIdx) =>
                     suffixes.map((suffix, suffixIdx) => {
                       const hasData = suffix === "_g" || playerPredicted;
-                      const raw = metrics[`${key}_${metric}${suffix}`];
-                      const val = hasData ? format(raw) : "—";
+                      // const raw = metrics[`${key}_${metric}${suffix}`];
+                      const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
+                      const val = hasData ? format(raw, metric) : "—";
                       const { bg, text } = getColorHSL(
                         hasData ? raw : null,
                         rowValues,
@@ -163,14 +202,22 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
       </div>
       <hr className="border-indigo-400 mt-4" />
       {/* Feature Importance Section */}
-      <div className="flex flex-col py-8 md:flex-row md:space-x-6">
+      {/* <div className="flex flex-col py-8 md:flex-row md:space-x-6">
         <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147]">
-          <FeatureBar title="Global Random Forest Importance" importances={featureImportance?.rfr || {}} />
+          <FeatureBar title="Global Random Forest Importance" importances={featureImportance?.rfr_g || {}} />
         </div>
         <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147] mt-6 md:mt-0">
-          <FeatureBar title="Global XGBoost Importance" importances={featureImportance?.xgb || {}} />
+          <FeatureBar title="Global XGBoost Importance" importances={featureImportance?.xgb_g || {}} />
         </div>
-    </div>
+        <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147]">
+          <FeatureBar title="Individual Random Forest Importance" importances={featureImportance?.rfr_i || {}} />
+        </div>
+        <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147] mt-6 md:mt-0">
+          <FeatureBar title="Individual XGBoost Importance" importances={featureImportance?.xgb_i || {}} />
+        </div>
+        
+      </div> */}
+      <CombinedFeatureChart featureImportance={featureImportance} />
     </div>
   );
 }

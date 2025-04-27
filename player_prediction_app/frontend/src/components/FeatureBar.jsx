@@ -2,8 +2,8 @@ import React from 'react';
 
 export default function FeatureBar({ title, importances }) {
   const sorted = Object.entries(importances)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 10);
+    .sort(([, a], [, b]) => b - a);
+    // .slice(0, 10);
 
   return (
     <div className="mb-6">

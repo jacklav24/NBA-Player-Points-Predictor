@@ -10,8 +10,11 @@
 # See the GNU General Public License for more details.
 # <https://www.gnu.org/licenses/>.
 
+from datetime import datetime
+from uuid import uuid4
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import numpy as np
 from pydantic import BaseModel
 
 import joblib
@@ -31,6 +34,8 @@ from model_logic import (
     predict_points,
 )
 import player_data_setup as setup
+
+from constants import FEATURE_COLUMNS, COLUMNS_TO_SCALE
 # from feature_engineering import engineer_features, get_train_test_splits
 
 app = FastAPI()
@@ -58,6 +63,8 @@ X_train_i         = None
 X_test_i          = None
 y_train_i         = None
 y_test_i          = None
+xgb_imp_g         = None
+rrf_imp_i         = None
 
 config_dir   = Path(__file__).parent / "data/optimization"
 with open(config_dir / "rfr_params.json") as f:
@@ -92,8 +99,8 @@ rfr_g_r2   = r2_score(y_test, rfr_gy_pred)
 rfr_g_bias = float((rfr_gy_pred - y_test).mean())
 
 # 3) Feature importances
-rfr_g_imp = { feat: float(imp) for feat, imp in zip(X.columns, rfr_model.feature_importances_) }
-xgb_g_imp = { feat: float(imp) for feat, imp in zip(X.columns, xgb_model.feature_importances_) }
+rfr_imp_g = { feat: float(imp) for feat, imp in zip(X.columns, rfr_model.feature_importances_) }
+xgb_imp_g = { feat: float(imp) for feat, imp in zip(X.columns, xgb_model.feature_importances_) }
 
 # 4) Residuals / actuals / predictions (stacked model)
 residuals   = [ float(err) for err in (y_test - stacked_gy_pred) ]
@@ -131,6 +138,10 @@ def recompute_global_metrics():
     stk_g_mae = mean_absolute_error(y_test, stacked_gy_pred)
     stk_g_rmse = root_mean_squared_error(y_test, stacked_gy_pred)
     
+def within_n_points(y_true, y_pred, n=5):
+    differences = np.abs(y_true - y_pred)
+    return np.mean(differences <= n)  # returns percentage
+
 
 
 @app.post("/optimize")
@@ -159,6 +170,7 @@ class PredictionRequest(BaseModel):
     team: str
     opponent: str
     home: str
+    save_run: bool
 
 # API endpoints
 
@@ -236,8 +248,12 @@ def run_global_prediction(payload: PredictionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict_both")
-def run_blended_prediction(payload: PredictionRequest):
+def run_all_prediction(payload: PredictionRequest):
     global player, team, rfr_model_i, xgb_model_i, stacked_model_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i
+    global Xs_test, player, team, scaler_i
+    rfr_p_g = rfr_model.predict(Xs_test)
+    xgb_p_g = xgb_model.predict(Xs_test)
+    stk_p_g = stacked_model.predict(Xs_test)
     player, team = payload.player_name, payload.team
     key = (player, team)
     
@@ -275,6 +291,7 @@ def run_blended_prediction(payload: PredictionRequest):
         N = len(indiv_df)
         THRESHOLD = 30           # tweak this to taste
         α = min(1.0, N/THRESHOLD)
+        α = (N/30) / (1 + N/30)
 
         # --- 4) Blend the three predictions ---
         blended = {
@@ -282,15 +299,36 @@ def run_blended_prediction(payload: PredictionRequest):
           "xgb":     α*xgb_pred_i["predicted_points"]    + (1-α)*xgb_pred_g["predicted_points"],
           "stacked": α*stacked_pred_i["predicted_points"]+ (1-α)*stacked_pred_g["predicted_points"],
         }
-        to_return = {
-          "global_model":     {"rfr": rfr_pred_g,     "xgb": xgb_pred_g,     "stacked": stacked_pred_g},
-          "individual_model": {"rfr": rfr_pred_i,      "xgb": xgb_pred_i,      "stacked": stacked_pred_i},
-          "blended_model":    {"rfr": round(blended["rfr"],2), 
-                                "xgb": round(blended["xgb"],2), 
-                                "stacked": round(blended["stacked"],2),
-                                "alpha": round(α, 2)}
-        }
-        print(to_return)
+        
+        
+        run = {
+        "id": str(uuid4()),  
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "features": FEATURE_COLUMNS,
+        "scaled_features": COLUMNS_TO_SCALE,
+        "metrics": {
+            "rfr_mae_g":  mean_absolute_error(y_test, rfr_p_g),
+            "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
+            "rfr_r2_g":   r2_score(y_test, rfr_p_g),
+            "rfr_bias_g": float((rfr_p_g - y_test).mean()),
+            "rfr_within_n_g": within_n_points(y_test, rfr_p_g, n=3),
+
+            "xgb_mae_g":  mean_absolute_error(y_test, xgb_p_g),
+            "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
+            "xgb_r2_g":   r2_score(y_test, xgb_p_g),
+            "xgb_bias_g": float((xgb_p_g - y_test).mean()),
+            "xgb_within_n_g": within_n_points(y_test, xgb_p_g, n=3),
+
+            "stacked_mae_g":  mean_absolute_error(y_test, stk_p_g),
+            "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
+            "stacked_r2_g":   r2_score(y_test, stk_p_g),
+            "stacked_bias_g": float((stk_p_g - y_test).mean()),
+            "stacked_within_n_g": within_n_points(y_test, stk_p_g, n=3),
+            }
+        } 
+        run['save'] = payload.save_run
+        print(payload.save_run, "save run payload")
+        mm.save_runs(run)
         # --- 5) Return all three sets side by side ---
         return {
           "global_model":     {"rfr": rfr_pred_g,     "xgb": xgb_pred_g,     "stacked": stacked_pred_g},
@@ -308,92 +346,6 @@ def run_blended_prediction(payload: PredictionRequest):
 
 # Model Info Endpoints
 
-# @app.get("/model_insights")
-# def model_insights():#payload: PredictionRequest):
-#     global Xs_test, player, team, scaler_i
-#     rfr_p_g = rfr_model.predict(Xs_test)
-#     xgb_p_g = xgb_model.predict(Xs_test)
-#     stk_p_g = stacked_model.predict(Xs_test)
-#     key = (player, team)
-#     Xs_test_i = None
-    
-#     if key not in _indiv_model_cache:
-#         return out
-#     (
-#       rfr_model_i,
-#       xgb_model_i,
-#       stacked_model_i,
-#       scaler_i,
-#       X_i,
-#       X_train_i,
-#       X_test_i,
-#       y_train_i,
-#       y_test_i
-#     ) = _indiv_model_cache[key]
-    
-    
-
-#     out = {
-#         "metrics": {
-#             "rfr_mae_g": mean_absolute_error(y_test, rfr_p_g),
-#             "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
-#             "rfr_r2_g": r2_score(y_test, rfr_p_g),
-#             "rfr_bias_g": float((rfr_p_g - y_test).mean()),
-
-#             "xgb_mae_g": mean_absolute_error(y_test, xgb_p_g),
-#             "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
-#             "xgb_r2_g": r2_score(y_test, xgb_p_g),
-#             "xgb_bias_g": float((xgb_p_g - y_test).mean()),
-
-#             "stacked_mae_g": mean_absolute_error(y_test, stk_p_g),
-#             "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
-#             "stacked_r2_g": r2_score(y_test, stk_p_g),
-#             "stacked_bias_g": float((stk_p_g - y_test).mean()),
-#         },
-#         "feature_importance": {
-#             "rfr": rfr_g_imp,
-#             "xgb": xgb_g_imp
-#         }
-#     }
-    
-
-#     if rfr_model_i is not None:
-#        # scale only the configured columns
-#         Xs_test_i = X_test_i.copy()
-#         Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
-
-#         rfr_p_i = rfr_model_i.predict(Xs_test_i)
-#         out["metrics"].update({
-#             "rfr_mae_i": mean_absolute_error(y_test_i, rfr_p_i),
-#             "rfr_rmse_i": root_mean_squared_error(y_test_i, rfr_p_i),
-#             "rfr_r2_i": r2_score(y_test_i, rfr_p_i),
-#             "rfr_bias_i": float((rfr_p_i - y_test_i).mean()),
-#         })
-
-#     if xgb_model_i is not None:
-#         Xs_test_i = X_test_i.copy()
-#         Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
-#         xgb_p_i = xgb_model_i.predict(Xs_test_i)
-#         out["metrics"].update({
-#             "xgb_mae_i": mean_absolute_error(y_test_i, xgb_p_i),
-#             "xgb_rmse_i": root_mean_squared_error(y_test_i, xgb_p_i),
-#             "xgb_r2_i": r2_score(y_test_i, xgb_p_i),
-#             "xgb_bias_i": float((xgb_p_i - y_test_i).mean()),
-#         })
-
-#     if stacked_model_i is not None:
-#         Xs_test_i = X_test_i.copy()
-#         Xs_test_i = setup.scale_columns(scaler_i, X_test_i, False)
-#         stk_p_i = stacked_model_i.predict(Xs_test_i)
-#         out["metrics"].update({
-#             "stacked_mae_i": mean_absolute_error(y_test_i, stk_p_i),
-#             "stacked_rmse_i": root_mean_squared_error(y_test_i, stk_p_i),
-#             "stacked_r2_i": r2_score(y_test_i, stk_p_i),
-#             "stacked_bias_i": float((stk_p_i - y_test_i).mean()),
-#         })
-    
-#     return out
-
 
 @app.get("/model_insights")
 def model_insights():
@@ -410,7 +362,7 @@ def model_insights():
     rfr_p_g = rfr_model.predict(Xs_test)
     xgb_p_g = xgb_model.predict(Xs_test)
     stk_p_g = stacked_model.predict(Xs_test)
-
+    
     # Build base output with global metrics
     out = {
         "metrics": {
@@ -418,20 +370,23 @@ def model_insights():
             "rfr_rmse_g": root_mean_squared_error(y_test, rfr_p_g),
             "rfr_r2_g":   r2_score(y_test, rfr_p_g),
             "rfr_bias_g": float((rfr_p_g - y_test).mean()),
+            "rfr_within_n_g": within_n_points(y_test, rfr_p_g, n=3),
 
             "xgb_mae_g":  mean_absolute_error(y_test, xgb_p_g),
             "xgb_rmse_g": root_mean_squared_error(y_test, xgb_p_g),
             "xgb_r2_g":   r2_score(y_test, xgb_p_g),
             "xgb_bias_g": float((xgb_p_g - y_test).mean()),
+            "xgb_within_n_g": within_n_points(y_test, xgb_p_g, n=3),
 
             "stacked_mae_g":  mean_absolute_error(y_test, stk_p_g),
             "stacked_rmse_g": root_mean_squared_error(y_test, stk_p_g),
             "stacked_r2_g":   r2_score(y_test, stk_p_g),
             "stacked_bias_g": float((stk_p_g - y_test).mean()),
+            "stacked_within_n_g": within_n_points(y_test, stk_p_g, n=3),
         },
         "feature_importance": {
-            "rfr": rfr_g_imp,
-            "xgb": xgb_g_imp
+            "rfr_g": rfr_imp_g,
+            "xgb_g": xgb_imp_g
         }
     }
 
@@ -458,20 +413,32 @@ def model_insights():
         "rfr_rmse_i": root_mean_squared_error(y_test_i, rfr_p_i),
         "rfr_r2_i":   r2_score(y_test_i, rfr_p_i),
         "rfr_bias_i": float((rfr_p_i - y_test_i).mean()),
+        "rfr_within_n_i": within_n_points(y_test_i, rfr_p_i, n=3),
 
         "xgb_mae_i":  mean_absolute_error(y_test_i, xgb_p_i),
         "xgb_rmse_i": root_mean_squared_error(y_test_i, xgb_p_i),
         "xgb_r2_i":   r2_score(y_test_i, xgb_p_i),
         "xgb_bias_i": float((xgb_p_i - y_test_i).mean()),
+        "xgb_within_n_i": within_n_points(y_test_i, xgb_p_i, n=3),
+
 
         "stacked_mae_i":  mean_absolute_error(y_test_i, stk_p_i),
         "stacked_rmse_i": root_mean_squared_error(y_test_i, stk_p_i),
         "stacked_r2_i":   r2_score(y_test_i, stk_p_i),
         "stacked_bias_i": float((stk_p_i - y_test_i).mean()),
+        "stacked_within_n_i": within_n_points(y_test_i, stk_p_i, n=3),
+
     })
 
+    rfr_imp_i = { feat: float(imp) for feat, imp in zip(X_i.columns, rfr_model_i.feature_importances_) }
+    xgb_imp_i = { feat: float(imp) for feat, imp in zip(X_i.columns, xgb_model_i.feature_importances_) }
+    out["feature_importance"].update({"rfr_i": rfr_imp_i,
+            "xgb_i": xgb_imp_i})
+
     # --- 5) Compute blended metrics: use the individual's hold-out, but global preds from that same set ---
-    alpha = min(1.0, len(X_i) / 30)
+    N = len(X_test_i) + len(X_train_i)
+    THRESHOLD = 30   
+    alpha = (N/30) / (1 + N/30)
     global_on_indiv = {
         'rfr':  rfr_model.predict(Xs_indiv),
         'xgb':  xgb_model.predict(Xs_indiv),
@@ -486,10 +453,15 @@ def model_insights():
             f"{m}_rmse_b": root_mean_squared_error(y_test_i, blended),
             f"{m}_r2_b":   r2_score(y_test_i, blended),
             f"{m}_bias_b": float((blended - y_test_i).mean()),
+            f"{m}_within_n_b" : within_n_points(y_test_i, blended, n=3),
         })
+    
 
     return out
 
+@app.get("/get_runs")
+def get_runs():
+    return mm.get_runs()
 
 #  FUTURE POTENTIAL ENDPOINTS
 

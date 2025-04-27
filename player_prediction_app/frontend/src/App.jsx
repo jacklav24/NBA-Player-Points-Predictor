@@ -12,6 +12,10 @@
  * <https://www.gnu.org/licenses/>.
  */
 
+
+
+
+
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CustomComboboxDropdown from './components/CustomComboboxDropdown';
@@ -19,6 +23,7 @@ import ModelMetrics from './components/ModelMetrics';
 import FeatureBar from './components/FeatureBar';
 import teamLabels from './constants/teamLabels';
 import Predictions from './components/Predictions';
+import ModelRunHistory from './components/ModelRunHistory';
 
 function App() {
   const [players, setPlayers] = useState([]);
@@ -34,8 +39,10 @@ function App() {
   const [individualResult, setIndividualResult] = useState(null);
   const [blendedResult, setBlendedResult] = useState(null);
   const [insights, setInsights] = useState(null);
+  const [runs, setRuns] = useState(null);
   const [loading, setLoading] = useState(false);
   const [reTuning, setReTuning] = useState(false);
+  const [saveRun, setSaveRun] = useState(false);
   const [isPredicting, setIsPredicting] = useState(false);
   const[playerPredicted, setPlayerPredicted] = useState(false);
 
@@ -48,6 +55,7 @@ function App() {
     axios.get('http://localhost:8000/model_insights')
       .then(res => setInsights(res.data))
       .catch(console.error);
+    axios.get('http://localhost:8000/get_runs').then(res => setRuns(res.data)).catch(console.error);
     }, []);
 
   useEffect(() => {
@@ -75,6 +83,8 @@ function App() {
       setIndividualResult(null);
       setBlendedResult(null); 
       setIsPredicting(true);
+      setRuns(null);
+      console.log("this is save run rn", saveRun);
       // const [globalRes, individualRes, blendedRes] = await Promise.all([
       const [blendedRes] = await Promise.all([
         // axios.post('http://localhost:8000/global_predict', {
@@ -94,6 +104,7 @@ function App() {
           team: team,
           opponent: opponent,
           home: location,
+          save_run: saveRun,
         }),
       ]);
 
@@ -115,19 +126,13 @@ function App() {
     }
   };
 
-
+  
   
   const fetchInsights = () => {
-    // axios.get("http://localhost:8000/model_insights"//, {
-    // //   player_name: player,
-    // //   team: team,
-    // //   opponent: opponent,
-    // //   home: location,
-    // // })
-    // ).then(res => setInsights(res.data))
     axios.get("http://localhost:8000/model_insights")
     .then(res => setInsights(res.data))
          .catch(console.error);
+    axios.get("http://localhost:8000/get_runs").then(res => setRuns(res.data)).catch(console.error)
   };
 
   const kickOffOptimize = async () => {
@@ -152,7 +157,7 @@ function App() {
           NBA Player Points Predictor
         </h1>
   
-        <div className="max-w-6xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
+        <div className="w-full max-w-7xl mx-auto bg-[#2a2d55] p-6 rounded-xl shadow-lg">
           <div className="flex flex-wrap md:flex-nowrap justify-between items-end gap-4 mb-4">
             <CustomComboboxDropdown label="Team" options={teams} value={team} onChange={v => { setTeam(v); setPlayer(''); }} displayMap={teamLabels} />
             <CustomComboboxDropdown label="Player" options={players} value={player} onChange={setPlayer} disabled={!team} />
@@ -169,9 +174,17 @@ function App() {
                     onClick={kickOffOptimize}
                     disabled={reTuning}>
                     {reTuning ? 'Tuning...' : 'Re-Tune Hyperparameters'}</button>
+                    <button
+                      onClick={() => setSaveRun(v => !v)}
+                      className={`
+                        px-3 py-2 rounded-lg h-[42px] transition 
+                        ${saveRun
+                          ? 'bg-indigo-500 hover:bg-indigo-400 shadow-inner scale-95 text-white'
+                          : 'bg-gray-700 hover:bg-gray-600 text-white'}`}>            
+                              Save Run: {saveRun ? "On" : "Off"}
+                    </button>
           </div>
-  
-          {loading && (
+          {(loading || reTuning) && (
             <div className="text-center mt-2 animate-pulse">
               <span className="text-indigo-300">Calculating results...</span>
             </div>
@@ -193,6 +206,7 @@ function App() {
               />
           </div>
         )}
+        {runs && <ModelRunHistory runs={runs}/>}
       </div>
     );
   }

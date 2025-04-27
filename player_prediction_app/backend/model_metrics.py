@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -9,6 +10,11 @@ import optuna as op
 import joblib
 
 
+CSV_COLUMNS = [
+    "run_id", "timestamp",
+    "features", "scaled_features", "metrics", "save",
+    ]
+CSV_PATH = Path(__file__).parent / "data" / "optimization" / "model_runs.csv"
 
 def run_studies(X_train, y_train, X_test, y_test, n_trials: int = 50):
     ''' Runs studies on the hyperparameters of xgb and rfr and returns the study results '''
@@ -81,7 +87,7 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
     # study_xgb = op.create_study(direction="minimize", study_name="XGB_RMSE")
 
     # 2) RANDOM SAMPLER
-    # study_xgb = op.create_study(direction="minimize", sampler=op.samplers.RandomSampler(), study_name="XGB_RMSE")
+    # study_xgb = op.create_study(direction="minimize", sampler=op.samplers.RandomSampler(), study_name="XGB_RMSE") 
 
     # 3) EXPLICIT CONTROL SAMPLER (requires sampler initialization line)
     sampler = op.samplers.TPESampler(n_startup_trials=10, seed=42)
@@ -117,5 +123,33 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
     # print("Best XGB RMSE :", study_xgb.best_value)
 
     return study_rfr, study_xgb
+
+def save_runs(run):
+    
+    # (1) compute exactly as before...
+
+    entry = {
+      "run_id":    run["id"],
+      "timestamp": run["date"],
+      "features": run["features"],
+      "scaled_features": run["scaled_features"],
+      "metrics" : run["metrics"],
+      "save" : run["save"],
+    }
+
+    # ensure CSV exists with header
+    df_entry = pd.DataFrame([entry], columns=CSV_COLUMNS)
+
+    # if file doesn’t exist yet, write headers; otherwise append without headers
+    write_header = not CSV_PATH.exists()
+    df_entry.to_csv(CSV_PATH, mode="a", index=False, header=write_header)
     
     
+def get_runs():
+    
+
+    df = pd.read_csv(CSV_PATH)
+    df = df[df['save'] == 'True'] 
+    print(len(df))
+    # turn it into a list of row‐dicts
+    return df.to_dict(orient="records")

@@ -14,7 +14,7 @@ FEATURE_COLUMNS = [
     "Home", "Pace", "eFG%_y", "TOV%", "DRB%",
     "PTS_last_5_avg", "MP_last_5_avg", "PTS_trend_5",
     "PTS_vol_5", "PTS_per_min", 'def_adj', "Days_of_rest", 
-    'usage_rate', "month_sin", "month_cos", "is_back2back",
+    'usage_rate', "month_sin", "month_cos", "is_back2back", #"Hot_Streak"
 ]
 
 # Columns to Scale (must be in FEATURE_COLUMNS too)

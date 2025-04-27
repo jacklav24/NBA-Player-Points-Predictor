@@ -200,21 +200,6 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
       </div>
       <hr className="border-indigo-400 mt-4" />
       {/* Feature Importance Section */}
-      {/* <div className="flex flex-col py-8 md:flex-row md:space-x-6">
-        <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147]">
-          <FeatureBar title="Global Random Forest Importance" importances={featureImportance?.rfr_g || {}} />
-        </div>
-        <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147] mt-6 md:mt-0">
-          <FeatureBar title="Global XGBoost Importance" importances={featureImportance?.xgb_g || {}} />
-        </div>
-        <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147]">
-          <FeatureBar title="Individual Random Forest Importance" importances={featureImportance?.rfr_i || {}} />
-        </div>
-        <div className="flex-1 border border-indigo-400 rounded-lg p-4 bg-[#1e2147] mt-6 md:mt-0">
-          <FeatureBar title="Individual XGBoost Importance" importances={featureImportance?.xgb_i || {}} />
-        </div>
-        
-      </div> */}
       <CombinedFeatureChart featureImportance={featureImportance} />
     </div>
   );

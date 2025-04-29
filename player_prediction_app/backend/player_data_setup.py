@@ -97,12 +97,12 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     # drop games where 
     
     # Convert MP to minutes float
-    merged['MP'] = merged['MP'].apply(lambda x: safe_convert_mp(x) if isinstance(x, str) else 0)
+    # merged['MP'] = merged['MP'].apply(lambda x: safe_convert_mp(x) if isinstance(x, str) else 0)
 
     # Numeric coercion
     merged['PTS'] = pd.to_numeric(merged['PTS'], errors='coerce').fillna(0)
     merged['FGA'] = pd.to_numeric(merged['FGA'], errors='coerce').fillna(0)
-
+    merged['MP'] = pd.to_numeric(merged['FGA'], errors='coerce').fillna(0)
     merged.drop(columns=['Rk', 'Gcar', 'Gtm', 'Team_x', 'Unnamed: 5', 'Unnamed: 2', 'Opp', 'Result',
         'GmSc', '+/-', 'Unnamed: 0', 'Team_y', ], inplace=True, errors='ignore')
     # merged.drop(columns=['Rk', 'Gcar', 'Gtm', 'Team_x', 'Unnamed: 5', 'Opp', 'Result',

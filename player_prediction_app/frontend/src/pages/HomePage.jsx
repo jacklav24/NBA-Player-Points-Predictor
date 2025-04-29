@@ -81,7 +81,12 @@ function HomePage() {
 
   const fetchInsights = () => {
     axios.get("http://localhost:8000/model_insights")
-    .then(res => setInsights(res.data))
+    .then(res => {setInsights(res.data);
+      // setIndividualResult(null);
+      //   setBlendedResult(null);
+      //   setPlayerPredicted(false);
+  
+  })
          .catch(console.error);
   };
 

@@ -26,7 +26,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     last_played = out.groupby('Player')['Date'].shift(1)
     out['Days_of_rest'] = (out['Date'] - last_played).dt.days.fillna(0)
     out = out[out['MP'].notna() & (out['MP'] != '') & (out["MP"] != 'Inactive') & (out["MP"] != 'Did Not Play') & (out["MP"] != 'Did Not Dress') & (out["MP"] != 'Not With Team')]
-    out["MP"] = pd.to_numeric(out["MP"], errors='coerce').fillna(0)
+    # out["MP"] = pd.to_numeric(out["MP"], errors='coerce').fillna(0)
     
     out['month']     = out['Date'].dt.month
     out['month_sin'] = np.sin(2*np.pi*out['month']/12)

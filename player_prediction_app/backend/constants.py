@@ -1,5 +1,9 @@
 ''' Constants throughout the project'''
 
+# Cutoff number of games for training data
+CUTOFF_VALUE = 10
+
+
 # Column to predict
 TARGET_COLUMN = "PTS"
 
@@ -20,10 +24,10 @@ FEATURE_COLUMNS = [
 # Columns to Scale (must be in FEATURE_COLUMNS too)
 COLUMNS_TO_SCALE = [  "Pace",
         'PTS_last_5_avg',  'MP_last_5_avg',
-            # 'PTS_5_game_trend',
+
             'PTS_vol_5',
             # 'Hot_Streak',
-            # 'PTS_rolling_trend',
+
             'PTS_per_min',
             # 'PTS_pct_of_max', 
             'def_adj',

@@ -1,0 +1,149 @@
+{
+  "5": {
+    "rfr_params": {
+      "n_estimators": 91,
+      "max_depth": 15,
+      "min_samples_split": 5,
+      "min_samples_leaf": 10,
+      "max_features": null
+    },
+    "rfr_rmse": 4.225475826305955,
+    "xgb_params": {
+      "n_estimators": 348,
+      "learning_rate": 0.04098619784017456,
+      "max_depth": 7,
+      "subsample": 0.8341272457798027,
+      "colsample_bytree": 0.8756033332402395,
+      "gamma": 3.625975330012431,
+      "reg_alpha": 1.8395254538578627,
+      "reg_lambda": 0.3956372897023763
+    },
+    "xgb_rmse": 4.043511664409255
+  },
+  "10": {
+    "rfr_params": {
+      "n_estimators": 91,
+      "max_depth": 15,
+      "min_samples_split": 5,
+      "min_samples_leaf": 10,
+      "max_features": null
+    },
+    "rfr_rmse": 4.225475826305955,
+    "xgb_params": {
+      "n_estimators": 348,
+      "learning_rate": 0.04098619784017456,
+      "max_depth": 7,
+      "subsample": 0.8341272457798027,
+      "colsample_bytree": 0.8756033332402395,
+      "gamma": 3.625975330012431,
+      "reg_alpha": 1.8395254538578627,
+      "reg_lambda": 0.3956372897023763
+    },
+    "xgb_rmse": 4.043511664409255
+  },
+  "15": {
+    "rfr_params": {
+      "n_estimators": 206,
+      "max_depth": 18,
+      "min_samples_split": 5,
+      "min_samples_leaf": 8,
+      "max_features": null
+    },
+    "rfr_rmse": 4.224117890450667,
+    "xgb_params": {
+      "n_estimators": 200,
+      "learning_rate": 0.07026058853281901,
+      "max_depth": 7,
+      "subsample": 0.6841607957464859,
+      "colsample_bytree": 0.9403719797943773,
+      "gamma": 3.162045842314592,
+      "reg_alpha": 1.9050866369987975,
+      "reg_lambda": 3.786810041772129
+    },
+    "xgb_rmse": 4.008473980813896
+  },
+  "20": {
+    "rfr_params": {
+      "n_estimators": 241,
+      "max_depth": 19,
+      "min_samples_split": 9,
+      "min_samples_leaf": 2,
+      "max_features": null
+    },
+    "rfr_rmse": 4.34705108393363,
+    "xgb_params": {
+      "n_estimators": 335,
+      "learning_rate": 0.07413877939424993,
+      "max_depth": 6,
+      "subsample": 0.9271785830416825,
+      "colsample_bytree": 0.796362197779708,
+      "gamma": 4.499760691376585,
+      "reg_alpha": 3.764187045135057,
+      "reg_lambda": 1.1075154847982636
+    },
+    "xgb_rmse": 4.140018670811569
+  },
+  "25": {
+    "rfr_params": {
+      "n_estimators": 282,
+      "max_depth": 18,
+      "min_samples_split": 7,
+      "min_samples_leaf": 3,
+      "max_features": null
+    },
+    "rfr_rmse": 4.427620714735942,
+    "xgb_params": {
+      "n_estimators": 418,
+      "learning_rate": 0.11373316201185267,
+      "max_depth": 6,
+      "subsample": 0.9780908312003829,
+      "colsample_bytree": 0.8252240682713786,
+      "gamma": 3.6931198599113166,
+      "reg_alpha": 3.8308396263207563,
+      "reg_lambda": 2.77930682816255
+    },
+    "xgb_rmse": 4.2090327846868005
+  },
+  "30": {
+    "rfr_params": {
+      "n_estimators": 282,
+      "max_depth": 19,
+      "min_samples_split": 5,
+      "min_samples_leaf": 6,
+      "max_features": null
+    },
+    "rfr_rmse": 4.411987579950864,
+    "xgb_params": {
+      "n_estimators": 386,
+      "learning_rate": 0.040650756771372386,
+      "max_depth": 8,
+      "subsample": 0.815030358976357,
+      "colsample_bytree": 0.948642973878725,
+      "gamma": 3.3031465728035343,
+      "reg_alpha": 1.3607295191427182,
+      "reg_lambda": 3.6900612683892877
+    },
+    "xgb_rmse": 4.188791381591172
+  },
+  "40": {
+    "rfr_params": {
+      "n_estimators": 191,
+      "max_depth": 19,
+      "min_samples_split": 7,
+      "min_samples_leaf": 6,
+      "max_features": null
+    },
+    "rfr_rmse": 4.4669649617984355,
+    "xgb_params": {
+      "n_estimators": 383,
+      "learning_rate": 0.04944963739945614,
+      "max_depth": 7,
+      "subsample": 0.642084951685628,
+      "colsample_bytree": 0.8265015800721067,
+      "gamma": 1.8161520771017918,
+      "reg_alpha": 2.134711185966219,
+      "reg_lambda": 3.2634060011249053
+    },
+    "xgb_rmse": 4.263479117036119
+  }
+}

@@ -26,10 +26,14 @@ import xgboost as xgb
 import matplotlib.pyplot as plt
 import player_data_setup as setup
 from feature_engineering import prep_game, engineer_features
-from constants import TARGET_COLUMN, FEATURE_COLUMNS
+from constants import TARGET_COLUMN, FEATURE_COLUMNS, CUTOFF_VALUE
+
+import model_metrics as mm
+
+
 
 def load_players_data():
-    base_path = "./data/player_game_data/"
+    base_path = "./data/all_player_w_playoff_game_data/"
     all_players = []
     all_teams = []
     team_stats_df = pd.read_csv("./data/team_def_stats.csv")
@@ -49,7 +53,8 @@ def load_players_data():
 
             # 3) Read the raw per‐game CSV into `raw_df`
             raw_df = pd.read_csv(os.path.join(team_path, file))
-
+            if len(raw_df) < CUTOFF_VALUE:
+                continue
             # 4) Preprocess & merge: parses dates, filters DNPs, merges opponent D-stats
             pre_df = setup.preprocess_player_df(raw_df, team_stats_df, player_name)
 

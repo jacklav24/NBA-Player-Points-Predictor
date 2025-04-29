@@ -1,6 +1,0 @@
-Here's a list of everything I can find that would need to be changed for a different model/dataset.
-As in, what would need to be written anew, rather than just implanted with the new info
-So NOT feature_columns, but yes "getPlayers"
-
-1. All of data.
-

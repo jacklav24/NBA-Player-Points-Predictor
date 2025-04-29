@@ -118,8 +118,8 @@ function HomePage() {
         await fetchInsights();
 
       } catch (err) {
-        console.error("Predict error:", err.response?.data || err);
-        alert("Prediction failed; check console for details.");
+        console.error("Predict error response:", err.response?.data);
+        alert("Prediction failed: " + JSON.stringify(err.response?.data));
       }finally {
         setLoading(false);
         setIsPredicting(false);

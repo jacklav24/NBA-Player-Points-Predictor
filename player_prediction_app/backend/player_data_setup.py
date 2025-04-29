@@ -41,10 +41,23 @@ def convert_mp(mp):
     return int(minutes) + int(seconds) / 60
 
 
+# def safe_convert_mp(x):
+#     # only convert when it’s a string like “00:00” or “5:23”
+#     if isinstance(x, str) and re.fullmatch(r'\d{1,2}:\d{2}', x):
+#         return convert_mp(x)
+#     return x
 def safe_convert_mp(x):
-    # only convert when it’s a string like “00:00” or “5:23”
-    if isinstance(x, str) and re.fullmatch(r'\d{1,2}:\d{2}', x):
-        return convert_mp(x)
+    if isinstance(x, str):
+        x = x.strip()
+        # MM:SS → float minutes
+        if re.fullmatch(r'\d{1,2}:\d{2}', x):
+            return convert_mp(x)
+        # pure integer string → minutes
+        if re.fullmatch(r'\d+', x):
+            return float(x)
+        # empty or non-numeric → NaN
+        return pd.NA
+    # already numeric → leave alone
     return x
     
 def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_name: str) -> pd.DataFrame:
@@ -53,19 +66,34 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     - Parses dates, converts MP string→float, filters out DNPs.
     - Merges opponent team defensive stats.
     """
-    
+    # print("player df columns", df.columns)
     df = df.copy()
     df["Player"] = player_name
-    
+    num_cols = ['FG', 'FGA', 'FG%', '3P', '3PA', '3P%', '2P', '2PA', '2P%', 'eFG%',
+        'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB',
+        'AST', 'STL', 'BLK', 'TOV', 'PF', 'PTS', '+/-'
+    ]
+    for col in num_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    # df['MP'] = (
+    # df['MP']
+    #   .astype(str)
+    #   .str.split(':').apply(lambda ms: int(ms[0]) + int(ms[1])/60 if ':' in ms else pd.to_numeric(ms, errors='coerce'))
+    # )
+    # df['MP'] = pd.to_numeric(df['MP'], errors='coerce').fillna(0)
+
     # merge player game logs with opposing team's defensive stats
     merged = df.merge(team_stats_df, left_on='Opp', right_on='Team', how='left')
-    
+    # print('merged_columns', merged.columns)
     # Parse date
     merged['Date'] = pd.to_datetime(merged['Date'], errors='coerce')
     
     # Flag home games
-    merged['Home'] = merged['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
-    
+    # merged['Home'] = merged['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
+    possible = ["Unnamed: 5", "Unnamed: 2"]
+    home_col = next((c for c in possible if c in merged.columns), None)
+    merged["Home"] = merged[home_col] \
+        .apply(lambda x: 1 if pd.isna(x) or x == "" else 0)
     # drop games where 
     
     # Convert MP to minutes float
@@ -75,8 +103,10 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     merged['PTS'] = pd.to_numeric(merged['PTS'], errors='coerce').fillna(0)
     merged['FGA'] = pd.to_numeric(merged['FGA'], errors='coerce').fillna(0)
 
-    merged.drop(columns=['Rk', 'Gcar', 'Gtm', 'Team_x', 'Unnamed: 5', 'Opp', 'Result',
-        'GmSc', '+/-', 'Unnamed: 0', 'Team_y', ], inplace=True)
+    merged.drop(columns=['Rk', 'Gcar', 'Gtm', 'Team_x', 'Unnamed: 5', 'Unnamed: 2', 'Opp', 'Result',
+        'GmSc', '+/-', 'Unnamed: 0', 'Team_y', ], inplace=True, errors='ignore')
+    # merged.drop(columns=['Rk', 'Gcar', 'Gtm', 'Team_x', 'Unnamed: 5', 'Opp', 'Result',
+    # 'GmSc', '+/-', 'Unnamed: 0', 'Team_y', ], inplace=True)
     # # Filter out Did Not Play
     # df = df[~df['MP'].isin([0])]
     for pct_col, attempts_col in SHOOTING_STATS.items():
@@ -95,6 +125,8 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
 def scale_columns(scaler, X, fitting=False):
     ''' FITTING = FALSE : if you are doing the INITIAL Scaling of the data. 
         FITTING = TRUE  : if you are setting up the scaler'''
+        
+    X = X.replace([np.inf, -np.inf], np.nan).fillna(0)
     if fitting:
         X[COLUMNS_TO_SCALE] = scaler.fit_transform(X[COLUMNS_TO_SCALE])
     else:

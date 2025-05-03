@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 
 
 
-export default function CustomComboboxDropdown({ label, options, value, onChange, disabled = false, displayMap = {}}) {
+export default function CustomComboboxDropdown({ label, options, value, onChange, disabled = false, displayMap = {}, minWidth}) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
@@ -15,7 +15,7 @@ export default function CustomComboboxDropdown({ label, options, value, onChange
       ? options
       : options.filter(opt => longLabel(opt).toLowerCase().includes(query.toLowerCase()))
     return (
-      <div className="flex-1 min-w-[150px] max-w-[200px]">
+      <div className={`flex-1 max-w-[300px] min-w-[${minWidth}px]`}>
         <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
         <Combobox value={value} onChange={onChange} disabled={disabled}>
           <div className="relative">

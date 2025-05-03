@@ -139,3 +139,9 @@ dist
 # files to ignore
 backend/venv/
 data_collection/
+backend/data/unused_sets/
+backend/data/models/
+backend/data/optimization/optuna_study_lgb.pkl
+backend/data/optimization/optuna_study_xgb.pkl
+backend/data/optimization/optuna_study_rfr.pkl
+backend/data/optimization/optuna_study_stk.pkl

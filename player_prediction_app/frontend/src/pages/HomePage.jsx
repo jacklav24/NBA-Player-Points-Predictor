@@ -82,10 +82,6 @@ function HomePage() {
   const fetchInsights = () => {
     axios.get("http://localhost:8000/model_insights")
     .then(res => {setInsights(res.data);
-      // setIndividualResult(null);
-      //   setBlendedResult(null);
-      //   setPlayerPredicted(false);
-  
   })
          .catch(console.error);
   };
@@ -103,7 +99,7 @@ function HomePage() {
         setIndividualResult(null);
         setBlendedResult(null); 
         setIsPredicting(true);
-
+        console.log("about to fetch")
         const [blendedRes] = await Promise.all([
           axios.post('http://localhost:8000/predict_both', {
             player_name: player,
@@ -113,7 +109,7 @@ function HomePage() {
             save_run: saveRun,
           }),
         ]);
-
+        console.log("fetched")
         setGlobalResult(blendedRes.data.global_model);
         setIndividualResult(blendedRes.data.individual_model);
         setBlendedResult(blendedRes.data.blended_model)
@@ -199,16 +195,11 @@ function HomePage() {
          
   
         {insights && (
-          <div className="max-w-7xl mx-auto mt-12 p-6 bg-[#2a2d55] shadow-xl">
-            <h2 className="text-2xl font-semibold text-center text-indigo-300 mb-4">
-              Model Diagnostics
-            </h2>
               <ModelMetrics
                 metrics={insights.metrics}
                 featureImportance={insights.feature_importance}
                 playerPredicted={playerPredicted}
               />
-          </div>
         )}
       </div>
     );

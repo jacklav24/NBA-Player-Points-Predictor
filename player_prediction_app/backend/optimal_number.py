@@ -1,3 +1,16 @@
+# This file is part of NBA Player Predictor.
+# Copyright (C) 2025 John LaVergne
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details.
+# <https://www.gnu.org/licenses/>.
+
+
 import json
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
@@ -48,7 +61,7 @@ def sweep_cutoff_hpo(output_path: str = "cutoff_sweep_results.json"):
         y = data["PTS"]
 
         # run hyperparam search for this X, y
-        study_rfr, study_xgb, _, _ = run_studies(X, None, n_trials=50)
+        study_rfr, study_xgb, study_lgb, _, _, _ = run_studies(X, None, n_trials=50)
 
         # record best params and best RMSE values
         results[cutoff] = {

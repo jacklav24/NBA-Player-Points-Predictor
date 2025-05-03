@@ -20,7 +20,7 @@ from sklearn.linear_model import RidgeCV
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
-from sklearn.ensemble import RandomForestRegressor
+from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 import xgboost as xgb
 import matplotlib.pyplot as plt
@@ -28,12 +28,13 @@ import player_data_setup as setup
 from feature_engineering import prep_game, engineer_features
 from constants import TARGET_COLUMN, FEATURE_COLUMNS, CUTOFF_VALUE
 
+
 import model_metrics as mm
 
 
 
 def load_players_data():
-    base_path = "./data/all_player_w_playoff_game_data/"
+    base_path = "./data/all_player_rs_playoff_game_data/"
     all_players = []
     all_teams = []
     team_stats_df = pd.read_csv("./data/team_def_stats.csv")
@@ -73,7 +74,7 @@ def load_players_data():
     return full_df, team_stats_df, all_teams
 
 
-def train_model(player_df, rfr_params=None, xgb_params=None):
+def train_model(player_df, rfr_params=None, xgb_params=None, lgb_params=None):
     
     y = player_df[TARGET_COLUMN]
     X = player_df[FEATURE_COLUMNS]
@@ -97,8 +98,17 @@ def train_model(player_df, rfr_params=None, xgb_params=None):
     }
     xgb_cfg = xgb_defaults if xgb_params is None else {**xgb_defaults, **xgb_params}
     xgb_model = xgb.XGBRegressor(**xgb_cfg)
-
-   
+    
+    lgb_defaults = {
+        "n_estimators": 300,
+        "learning_rate": 0.05,
+        "max_depth": 8,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "random_state": 42
+    }
+    lgb_cfg = lgb_defaults if lgb_params is None else {**lgb_defaults, **lgb_params}
+    lgb_model = LGBMRegressor(**lgb_cfg)
     estimators = [
     ('rf', rfr_model),
     ('xgb', xgb_model)
@@ -112,10 +122,10 @@ def train_model(player_df, rfr_params=None, xgb_params=None):
     # Fit the models
     rfr_model.fit(X_train_scaled, y_train)
     xgb_model.fit(X_train_scaled, y_train)
+    lgb_model.fit(X_train_scaled, y_train)
     stacked_model.fit(X_train_scaled, y_train)
-    
     # Return the models and the splits
-    return rfr_model, xgb_model, stacked_model, scaler, X, X_train, X_test, y_train, y_test
+    return rfr_model, xgb_model, lgb_model, stacked_model, scaler, X, X_train, X_test, y_train, y_test
 
 
 

@@ -1,88 +1,99 @@
-import React from "react";
+/**
+ * This file is part of NBA Player Predictor.
+ * Copyright (C) 2025 John LaVergne
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY.
+ * See the GNU General Public License for more details.
+ * <https://www.gnu.org/licenses/>.
+ */
+
+
+
+import React, { useState } from "react";
 import FeatureBar from "./FeatureBar"; 
 import CombinedFeatureChart from "./CombinedFeatureChart";
 
-export default function ModelMetrics({ metrics, featureImportance, playerPredicted, }) {
-  // const format = (val) =>
-  //   typeof val === "number" && isFinite(val) ? val.toFixed(2) : "—";
+export default function ModelMetrics({ metrics, featureImportance, playerPredicted }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const models = [
+    { key: "rfr", label: "Random Forest" },
+    { key: "xgb", label: "XGBoost" },
+    { key: "lgb", label: "LGB" },
+    { key: "stk", label: "Stacked"}
+  ];
+  const [selectedModels, setSelectedModels] = useState(models.map(m => m.key));
+
+  const suffixes = ["_g", ...(playerPredicted ? ["_i", "_b"] : [])];
+  const metricKeys = ["mae", "rmse", "r2", "bias", "within_n"];
+
+  const toggleModel = (key) => {
+    setSelectedModels(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const visibleModels = models.filter(m => selectedModels.includes(m.key));
+
+  
   const format = (val, metric) => {
     if (typeof val !== "number" || !isFinite(val)) return "—";
     if (metric === "within_n") return (val * 100).toFixed(0) + "%";
     return val.toFixed(2);
   };
 
-  const models = [
-    { key: "rfr", label: "Random Forest" },
-    { key: "xgb", label: "XGBoost" },
-    { key: "stacked", label: "Stacked" },
-  ];
-  const metricKeys = ["mae", "rmse", "r2", "bias", "within_n"];
-  const suffixes = ["_g", "_i", "_b"];
-
   const getColorHSL = (value, values, metric) => {
-    if (typeof value !== "number") {
-      return { bg: "hsl(220, 10%, 15%)", text: "#ccc" };
-    }
-  
-    // Define fixed reference ranges for specific metrics
+    if (typeof value !== "number") return { bg: "hsl(220, 10%, 15%)", text: "#ccc" };
+
     const metricRanges = {
       r2: { min: 0, max: 1 },
-      bias: null, // dynamic (around 0)
-      mae: { min: 0, max: 6 }, // Assume 0-20 reasonable error range (adjust)
-      rmse: { min: 0, max: 8 }, // Same
-      within_n: { min: 0, max: 1 }, // 0% to 100%
+      bias: null,
+      mae: { min: 0, max: 6 },
+      rmse: { min: 0, max: 8 },
+      within_n: { min: 0, max: 1 },
     };
-  
+
     const fixedRange = metricRanges[metric];
-  
     let scale;
+
     if (metric === "bias") {
       const numericValues = values.map(v => (typeof v === 'number' ? Math.abs(v) : null)).filter(v => v !== null);
-      const max = Math.max(...numericValues, 1); // prevent 0-div
+      const max = Math.max(...numericValues, 1);
       scale = Math.abs(value) / max;
     } else if (fixedRange) {
       const { min, max } = fixedRange;
       scale = (value - min) / (max - min);
-      if (metric !== 'r2' && metric !== 'within_n') {
-        scale = 1 - scale; // For mae/rmse lower=better
-      }
+      if (metric !== 'r2' && metric !== 'within_n') scale = 1 - scale;
     } else {
-      // fallback dynamic scaling
       const isHigherBetter = (metric === "r2" || metric === "within_n");
       const numericValues = values.filter(v => typeof v === 'number');
-      if (numericValues.length === 0) {
-        return { bg: 'hsl(220, 10%, 15%)', text: '#ccc' };
-      }
       const min = Math.min(...numericValues);
       const max = Math.max(...numericValues);
       const range = max - min || 1;
-      scale = isHigherBetter
-        ? (value - min) / range
-        : (max - value) / range;
+      scale = isHigherBetter ? (value - min) / range : (max - value) / range;
     }
-  
-    // clamp scale
+
     scale = Math.max(0, Math.min(1, scale));
-  
-    // Color mapping
     const hue = metric === 'bias' ? (1 - scale) * 120 : scale * 120;
     const saturation = 70;
     const lightness = 35 + scale * 20;
-  
     const bg = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  
+
     const [r, g, b] = hslToRgb(hue / 360, saturation / 100, lightness / 100);
     const yiq = (r * 299 + g * 587 + b * 114) / 1000;
     const text = yiq >= 128 ? '#000' : '#fff';
-  
+
     return { bg, text };
   };
-  
+
   function hslToRgb(h, s, l) {
     let r, g, b;
-    if (s === 0) {
-      r = g = b = l;
-    } else {
+    if (s === 0) r = g = b = l;
+    else {
       const hue2rgb = (p, q, t) => {
         if (t < 0) t += 1;
         if (t > 1) t -= 1;
@@ -101,38 +112,73 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
   }
 
   return (
-    <div className="max-w-8xl mx-auto mt-8">
+    <div className="w-full mx-auto mt-12 p-6 bg-[#2a2d55] shadow-xl">
+      <h2 className="text-2xl font-semibold text-center text-indigo-300 mb-4">
+              Model Diagnostics
+            </h2>
       <hr className="border-indigo-400 mb-4" />
+
+      <div className="flex justify-end mb-2">
+        <div className="relative inline-block text-left">
+          <button
+            className="inline-flex justify-center w-full rounded-md border border-indigo-400 shadow-sm px-3 py-1 bg-[#1e2147] text-sm font-medium text-indigo-300 hover:bg-[#2a2d55]"
+            type="button"
+            onClick={() => setDropdownOpen(open => !open)}
+          >
+            Select Models
+          </button>
+          {dropdownOpen && (
+            <div className="absolute right-0 z-10 mt-2 w-40 rounded-md shadow-lg bg-[#2a2d55] ring-1 ring-black ring-opacity-5">
+              <div className="py-1">
+                {models.map(({ key, label }) => (
+                  <label key={key} className="flex items-center px-4 py-1 text-sm text-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={selectedModels.includes(key)}
+                      onChange={() => toggleModel(key)}
+                      className="mr-2"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
         <table className="table-auto w-full text-sm text-gray-200 border-collapse">
           <thead>
             <tr>
               <th className="px-2 py-2"></th>
-              {models.map(({ label }, idx) => (
+              {suffixes.map((suffix, idx) => (
                 <th
-                  key={label}
-                  colSpan={3}
-                  className={`px-4 py-2 text-center text-indigo-300 ${
-                    idx < models.length - 1 ? "border-r-2 border-indigo-400" : ""
+                  key={suffix}
+                  colSpan={visibleModels.length}
+                  className={`px-4 py-2 text-center text-indigo-300 text-xl ${
+                    idx < suffixes.length - 1 ? "border-r-2 border-indigo-400" : ""
                   }`}
                 >
-                  {label}
+                  {"Global Individual Blended".split(" ")[idx]}
                 </th>
+                
               ))}
+              
             </tr>
             <tr className="border-b-2 border-indigo-400">
               <th className="px-2 py-2"></th>
-              {models.flatMap(({ key }, modelIdx) =>
-                suffixes.map((_, i) => (
+              {suffixes.flatMap((suffix, groupIdx) =>
+                visibleModels.map(({ label }, modelIdx) => (
                   <th
-                    key={key + i}
-                    className={`px-2 py-1 text-center text-indigo-300 ${
-                      modelIdx < models.length - 1 && i === suffixes.length - 1
-                        ? "border-r-2 border-indigo-400"
+                    key={`${suffix}-${label}`}
+                    className={`px-2 py-1 text-center text-indigo-300 font-thin${
+                      groupIdx < suffixes.length - 1 && modelIdx === visibleModels.length - 1
+                        ? "border-r-2 border-indigo-400 font-thin"
                         : ""
                     }`}
                   >
-                    {["Global", "Individual", "Blended"][i]}
+                    {label}
                   </th>
                 ))
               )}
@@ -140,42 +186,30 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
           </thead>
           <tbody>
             {metricKeys.map((metric) => {
-              const rowValues = models.flatMap(({ key }) =>
-                suffixes.map((suffix) => {
-                  const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
-                  const hasData = raw !== null;
-                  // const raw = metrics[`${key}_${metric}${suffix}`];
-                  return hasData && typeof raw === "number" ? raw : null;
-                })
+              const rowValues = suffixes.flatMap(suffix =>
+                visibleModels.map(({ key }) => metrics?.[`${key}_${metric}${suffix}`] ?? null)
               );
 
               return (
                 <tr key={metric} className="border-t border-indigo-400">
                   <td className="px-2 py-3 text-gray-300 uppercase font-bold text-xl">{metric === "r2" ? "r²" : metric}</td>
-                  {models.flatMap(({ key }, modelIdx) =>
-                    suffixes.map((suffix, suffixIdx) => {
+                  {suffixes.flatMap(suffix =>
+                    visibleModels.map(({ key }) => {
                       const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
                       const hasData = raw !== null;
-                      // const raw = metrics?.[`${key}_${metric}${suffix}`] ?? null;
                       const val = hasData ? format(raw, metric) : "—";
-                      const { bg, text } = getColorHSL(
-                        hasData ? raw : null,
-                        rowValues,
-                        metric
-                      );
+                      const { bg, text } = getColorHSL(raw, rowValues, metric);
+                      const isLastInGroup =
+                      visibleModels.findIndex(m => m.key === key) === visibleModels.length - 1 &&
+                      suffix !== suffixes[suffixes.length - 1];
                       return (
                         <td
-                          key={key + metric + suffix}
-                          className={`px-2 py-3 text-center ${
-                            modelIdx < models.length - 1 && suffixIdx === suffixes.length - 1
-                              ? "border-r-2 border-indigo-400"
-                              : ""
+                          key={`${key}_${suffix}_${metric}`}
+                          className={`px-2 py-3 text-center ${isLastInGroup ? "border-r-2 border-indigo-400" : ""
                           }`}
                         >
                           <span
-                            title={
-                              hasData && typeof raw === "number" ? raw.toFixed(4) : ""
-                            }
+                            title={hasData && typeof raw === "number" ? raw.toFixed(4) : ""}
                             style={{
                               backgroundColor: bg,
                               color: text,
@@ -198,10 +232,9 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
           </tbody>
         </table>
       </div>
+
       <hr className="border-indigo-400 mt-4" />
-      {/* Feature Importance Section */}
       <CombinedFeatureChart featureImportance={featureImportance} />
     </div>
   );
 }
-

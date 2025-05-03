@@ -12,7 +12,7 @@ export default function RunHistoryPage() {
   }, []);
 
   return (
-    <div className="p-6">
+    <div className="p-6 w-auto">
       <button
         onClick={() => navigate('/')}
         className="absolute top-6 right-6 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm"

@@ -1,3 +1,17 @@
+/**
+ * This file is part of NBA Player Predictor.
+ * Copyright (C) 2025 John LaVergne
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY.
+ * See the GNU General Public License for more details.
+ * <https://www.gnu.org/licenses/>.
+ */
+
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,7 +40,7 @@ export default function ModelRunHistory({ runs = [], initialCount = 5, onSelectR
   }, [runs]);
 
   const displayed = showAll ? parsedRuns : parsedRuns.slice(0, initialCount);
-  const MODEL_KEYS = ['rfr', 'xgb', 'stacked'];
+  const MODEL_KEYS = ['rfr', 'xgb', 'lgb', 'stk'];
   const METRICS = ['mae', 'rmse', 'r2', 'bias'];
 
   const toggleSection = (runId, section) => {
@@ -62,7 +76,8 @@ export default function ModelRunHistory({ runs = [], initialCount = 5, onSelectR
           : `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 
         return (
-          <div key={run.id} className="bg-[#2a2d55] border border-indigo-400 p-4 rounded-lg relative">
+          <div key={run.id} className="bg-[#2a2d55] border border-indigo-400 p-4 rounded-lg relative max-w-5xl">
+
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm text-gray-300">Run: {dateLabel}</span>
               <div className="space-x-4 text-sm">
@@ -79,7 +94,7 @@ export default function ModelRunHistory({ runs = [], initialCount = 5, onSelectR
             </div>
 
             {/* metrics grid */}
-            <div className="grid grid-cols-3 gap-6 text-sm mb-2">
+            <div className="grid grid-cols-4 gap-6 text-sm mb-2 min-w-7xl">
               {MODEL_KEYS.map(key => (
                 <div key={key} className="space-y-1">
                   <span className="font-medium text-indigo-200 uppercase">{key}</span>
@@ -89,7 +104,8 @@ export default function ModelRunHistory({ runs = [], initialCount = 5, onSelectR
                     return (
                       <div key={metric} className="flex items-center">
                         <span className="text-white">{displayMetric(metric)}:</span>
-                        <span className={`${metricColor(metric)} ml-1`}>{displayVal}</span>
+                        <span className={`${metricColor(metric)} font-bold ml-1`}>{displayVal}</span>
+
                       </div>
                     );
                   })}

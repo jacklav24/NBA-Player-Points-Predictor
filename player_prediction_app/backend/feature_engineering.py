@@ -1,15 +1,21 @@
+# This file is part of NBA Player Predictor.
+# Copyright (C) 2025 John LaVergne
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY.
+# See the GNU General Public License for more details.
+# <https://www.gnu.org/licenses/>.
+
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 
 from constants import ROLLING_TREND_WINDOW, ROLLING_WINDOW, TARGET_COLUMN, FEATURE_COLUMNS
-
-
-
-
-
-
-
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:

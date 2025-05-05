@@ -34,7 +34,7 @@ import model_metrics as mm
 
 
 def load_players_data():
-    base_path = "./data/all_player_rs_playoff_game_data/"
+    base_path = "./data/player_game_data/"
     all_players = []
     all_teams = []
     team_stats_df = pd.read_csv("./data/team_def_stats.csv")

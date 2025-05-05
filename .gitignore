@@ -138,7 +138,7 @@ dist
 
 # files to ignore
 backend/venv/
-data_collection/
+data_collection/data
 backend/data/unused_sets/
 backend/data/models/
 backend/data/optimization/optuna_study_lgb.pkl

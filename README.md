@@ -6,13 +6,26 @@ It's a great chance to improve and look into modeling, machine learning, and pot
 
 ## Folder Structure
 
+There are 3 main directories/folders. 
+
+1. backend
+    - This houses the python and model logic. Hosts endpoints for training models, tuning hyperparameters, and making predictions.
+    - currently the backend needs to be shuffled around so that file structure makes a little more sense. functionality is perfect though.
+2. frontend
+    - Holds react frontend including pages, components, and endpoints to post/get model info for the user.
+3. data_collection
+    - Holds a jupyter notebook which utilizes the nba_api to get all active players data for model training.
+
+
 ```
 player-predictor-app/
 ├── backend/
 │   ├── main.py                  # FastAPI entrypoint
 │   ├── model_logic.py           # Model logic and data loading
 │   ├── player_data_setup.py     # Provided preprocessing functions
+│   ├── model_metrics.py         # Calculates and saves model metrics.
 |   ├── feature_engineering.py   # handles the chunk of feature engineering
+|   ├── constants.py             # holds constants related to model training and the project as whole.
 │   ├── data/
 │   │   ├── team_def_stats.csv
 │   │   └── player_game_logs/
@@ -26,10 +39,12 @@ player-predictor-app/
 │   ├── postcss.config.js
 │   ├── tailwind.config.js
 │   ├── src/
-│   │   ├── App.jsx              # Main React UI
-│   │   ├── index.js             # React DOM root
+│   │   ├── components/          # Custom react components
+│   │   ├── pages/               # Front-end react pages
 │   │   └── index.css            # Tailwind styles
 │
+├── data_collection/
+│   ├── data_collection_adjustment.ipynb    # Jupyter Notebook to take and transform data
 ├── README.md
 ```
 
@@ -58,13 +73,25 @@ Frontend will start on `http://localhost:5173` and communicate with FastAPI at `
 ---
 
 ## ✅ Features
-- Select your player, team, and opponent for game prediction
-- Run prediction and view predicted single game points, MAE, RMSE
-- Trained on historical rolling averages + opponent metrics
+### - Select your player, team, and opponent for game prediction
+### - Run prediction and view predicted single game points. 
+        - The global model is trained of EVERY player, EVERY game this year. The individual is trained on ONLY the selected player. And the blended model is a weighted average of the two, weighted by the amount of games the player played. Simply put, the less games the player played, the more the blended model tends to the global model.
 
--Model optimization
-    - To optimize the XGB and RFR model parameters, run this post statement in the console of the browser, or on postman:
-        ```fetch("http://localhost:8000/optimize?n_trials=50", {method: "POST"}).then(res => res.json()).then(console.log).catch(console.error);```
+### - Models are trained on historical rolling averages + opponent metrics
+
+### - Model optimization
+        - To optimize the model parameters press "tune hyperparameters". You will see the studies running in the backend terminal. After the studies finish, the models will retrain. You will not be able to make a prediction during this process (usually 1-2 minutes). Similarly, press "Train Global Model" to retrain the global model, if data has been added.
+
+### - Run Saving
+        - Press "Save Run" if you want to be able to look back at this specific player prediciton's run metrics, including mae, rmse, r2, bias, within_n, and feature importance. This is accessible in the "Run History" tab.
+
+## - Metrics
+    - MAE: Mean Absolute Error
+    - RMSE: Root Mean Squared Error
+    - R^2
+    - Bias
+    - Within_n: 
+        - This displays the % of time that the predicted value is "within +/- n points" of the actual value. n is 3 by default, but can be changed in constants.py.
 
 
 ### Significance
@@ -90,10 +117,8 @@ Enjoy predicting like a pro!
 
 ## 📊 Data Source
 
-Player and team statistics used in this project were sourced from [Basketball-Reference.com](https://www.basketball-reference.com/).
+Player and team statistics used in this project were sourced from (nba.com) using nba_api.
 
-Basketball Reference is a fantastic resource for historical NBA data and analytics.  
-This project is not affiliated with or endorsed by Basketball Reference or Sports Reference LLC.
 
 
 ## 🪪 License

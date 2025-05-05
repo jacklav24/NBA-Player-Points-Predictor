@@ -25,6 +25,7 @@ player-predictor-app/
 │   ├── player_data_setup.py     # Provided preprocessing functions
 │   ├── model_metrics.py         # Calculates and saves model metrics.
 |   ├── feature_engineering.py   # handles the chunk of feature engineering
+|   ├── optimal_number.py        # holds functions to select the "optimal" number of games to cutoff players (what is the minimum number of games played by a player to be used in training.
 |   ├── constants.py             # holds constants related to model training and the project as whole.
 │   ├── data/
 │   │   ├── team_def_stats.csv
@@ -81,6 +82,7 @@ Frontend will start on `http://localhost:5173` and communicate with FastAPI at `
 
 ### Model optimization
 - To optimize the model parameters press "tune hyperparameters". You will see the studies running in the backend terminal. After the studies finish, the models will retrain. You will not be able to make a prediction during this process (usually 1-2 minutes). Similarly, press "Train Global Model" to retrain the global model, if data has been added.
+- You can also separately run
 
 ### Run Saving
 - Press "Save Run" if you want to be able to look back at this specific player prediciton's run metrics, including mae, rmse, r2, bias, within_n, and feature importance. This is accessible in the "Run History" tab.
@@ -110,7 +112,7 @@ backend/data/player_game_data/{TEAM}/{PLAYER}.csv
 ```
 And each CSV contains full box score stats per game.
 
-### Right now, there is all 32 teams defensive stats. However, There is a limited amount of players to train on, which will be expanded on.
+### Right now, there is all 32 teams defensive stats. There is also player game logs from every active player.
 ---
 
 Enjoy predicting like a pro!

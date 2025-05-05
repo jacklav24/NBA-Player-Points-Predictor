@@ -25,7 +25,8 @@ player-predictor-app/
 │   ├── player_data_setup.py     # Provided preprocessing functions
 │   ├── model_metrics.py         # Calculates and saves model metrics.
 |   ├── feature_engineering.py   # handles the chunk of feature engineering
-|   ├── optimal_number.py        # holds functions to select the "optimal" number of games to cutoff players (what is the minimum number of games played by a player to be used in training.
+|   ├── optimal_number.py        # holds functions to select the "optimal" number of games to cutoff players
+                                (what is the minimum number of games played by a player to be used in training).
 |   ├── constants.py             # holds constants related to model training and the project as whole.
 │   ├── data/
 │   │   ├── team_def_stats.csv

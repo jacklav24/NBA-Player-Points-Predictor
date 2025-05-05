@@ -73,9 +73,9 @@ Frontend will start on `http://localhost:5173` and communicate with FastAPI at `
 ---
 
 ## ✅ Features
-### - Select your player, team, and opponent for game prediction
-### - Run prediction and view predicted single game points. 
-        - The global model is trained of EVERY player, EVERY game this year. The individual is trained on ONLY the selected player. And the blended model is a weighted average of the two, weighted by the amount of games the player played. Simply put, the less games the player played, the more the blended model tends to the global model.
+### Select your player, team, and opponent for game prediction
+### Run prediction and view predicted single game points. 
+- The global model is trained of EVERY player, EVERY game this year. The individual is trained on ONLY the selected player. And the blended model is a weighted average of the two, weighted by the amount of games the player played. Simply put, the less games the player played, the more the blended model tends to the global model.
 
 ### Models are trained on historical rolling averages + opponent metrics
 

@@ -77,20 +77,20 @@ Frontend will start on `http://localhost:5173` and communicate with FastAPI at `
 ### - Run prediction and view predicted single game points. 
         - The global model is trained of EVERY player, EVERY game this year. The individual is trained on ONLY the selected player. And the blended model is a weighted average of the two, weighted by the amount of games the player played. Simply put, the less games the player played, the more the blended model tends to the global model.
 
-### - Models are trained on historical rolling averages + opponent metrics
+### Models are trained on historical rolling averages + opponent metrics
 
-### - Model optimization
-        - To optimize the model parameters press "tune hyperparameters". You will see the studies running in the backend terminal. After the studies finish, the models will retrain. You will not be able to make a prediction during this process (usually 1-2 minutes). Similarly, press "Train Global Model" to retrain the global model, if data has been added.
+### Model optimization
+- To optimize the model parameters press "tune hyperparameters". You will see the studies running in the backend terminal. After the studies finish, the models will retrain. You will not be able to make a prediction during this process (usually 1-2 minutes). Similarly, press "Train Global Model" to retrain the global model, if data has been added.
 
-### - Run Saving
-        - Press "Save Run" if you want to be able to look back at this specific player prediciton's run metrics, including mae, rmse, r2, bias, within_n, and feature importance. This is accessible in the "Run History" tab.
+### Run Saving
+- Press "Save Run" if you want to be able to look back at this specific player prediciton's run metrics, including mae, rmse, r2, bias, within_n, and feature importance. This is accessible in the "Run History" tab.
 
-## - Metrics
-    - MAE: Mean Absolute Error
-    - RMSE: Root Mean Squared Error
-    - R^2
-    - Bias
-    - Within_n: 
+## Metrics
+- MAE: Mean Absolute Error
+- RMSE: Root Mean Squared Error
+- R^2
+- Bias
+- Within_n: 
         - This displays the % of time that the predicted value is "within +/- n points" of the actual value. n is 3 by default, but can be changed in constants.py.
 
 

@@ -65,6 +65,31 @@ def recompute_global_metrics():
     stk_g_mae  = mean_absolute_error(y_test, stk_gy_pred)
     stk_g_rmse = root_mean_squared_error(y_test, stk_gy_pred)
 
+def train_global_models(n_trials: int = 50):
+    global rfr_model, xgb_model, lgb_model, stacked_model, scaler, X
+    global X_train, X_test, y_train, y_test, Xs_test
+
+    (
+        rfr_model, xgb_model, lgb_model, stacked_model,
+        scaler, X,
+        X_train, X_test, y_train, y_test
+    ) = train_model(players_data, rfr_params, xgb_params, lgb_params)
+
+    Xs_test = setup.scale_columns(scaler, X_test.copy(), fitting=False)
+    recompute_global_metrics()
+
+    joblib.dump(rfr_model, MODEL_DIR / "rfr_global.pkl")
+    joblib.dump(xgb_model, MODEL_DIR / "xgb_global.pkl")
+    joblib.dump(lgb_model, MODEL_DIR / "lgb_global.pkl")
+    joblib.dump(stacked_model, MODEL_DIR / "stacked_global.pkl")
+    joblib.dump(scaler, MODEL_DIR / "scaler_global.pkl")
+    joblib.dump(X, MODEL_DIR / "X_global.pkl")
+    joblib.dump(X_test, MODEL_DIR / "X_test_global.pkl")
+    joblib.dump(y_test, MODEL_DIR / "y_test_global.pkl")
+    joblib.dump(X_train, MODEL_DIR / "X_train_global.pkl")
+    joblib.dump(y_train, MODEL_DIR / "y_train_global.pkl")
+    joblib.dump(Xs_test, MODEL_DIR / "Xs_test_global.pkl")
+
 
 # Load global models on startup
 def load_global_models():
@@ -91,8 +116,10 @@ else:
     print("[INFO] No saved global models found - will train when needed")
     rfr_model = xgb_model = lgb_model = stacked_model = scaler = X = None
     X_train = X_test = y_train = y_test = Xs_test = None
-# if rfr_model is None:
-#     train_global()
+
+if rfr_model is None:
+    print("[INFO] No models found. Training global models from scratch...")
+    train_global_models()
     
 
 # In-memory cache for individual models
@@ -114,36 +141,8 @@ with open(config_dir / "lgb_params.json") as f:
 # Train global model on demand
 @app.post("/train_global")
 def train_global(n_trials: int = 50):
-    global rfr_model, xgb_model, lgb_model, stacked_model, scaler, X
-    global X_train, X_test, y_train, y_test, Xs_test
-    # 1) Train from scratch
-    (
-        rfr_model, xgb_model, lgb_model, stacked_model,
-        scaler, X,
-        X_train, X_test, y_train, y_test
-    ) = train_model(players_data, rfr_params, xgb_params, lgb_params)
-
-    # 2) Scale test set
-    Xs_test = setup.scale_columns(scaler, X_test.copy(), fitting=False)
-
-    # 3) Compute and cache global metrics
-    recompute_global_metrics()
-
-    # 4) Persist models and data for next startup
-    joblib.dump(rfr_model, MODEL_DIR / "rfr_global.pkl")
-    joblib.dump(xgb_model, MODEL_DIR / "xgb_global.pkl")
-    joblib.dump(lgb_model, MODEL_DIR / "lgb_global.pkl")
-    joblib.dump(stacked_model, MODEL_DIR / "lgb_global.pkl")
-    joblib.dump(scaler, MODEL_DIR / "scaler_global.pkl")
-    joblib.dump(X, MODEL_DIR / "X_global.pkl")
-    joblib.dump(X_test,      MODEL_DIR / "X_test_global.pkl")
-    joblib.dump(y_test,      MODEL_DIR / "y_test_global.pkl")
-    joblib.dump(X_train,      MODEL_DIR / "X_train_global.pkl")
-    joblib.dump(y_train,      MODEL_DIR / "y_train_global.pkl")
-    joblib.dump(Xs_test, MODEL_DIR / "Xs_test_global.pkl")
-
+    train_global_models(n_trials)
     return {"detail": "Global model retrained"}
-
 
 def compute_diagnostics_for_test_set(
     Xs_test, y_test,

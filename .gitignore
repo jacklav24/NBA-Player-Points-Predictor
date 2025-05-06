@@ -137,11 +137,12 @@ dist
 
 
 # files to ignore
-backend/venv/
-data_collection/data
-backend/data/unused_sets/
-backend/data/models/
-backend/data/optimization/optuna_study_lgb.pkl
-backend/data/optimization/optuna_study_xgb.pkl
-backend/data/optimization/optuna_study_rfr.pkl
-backend/data/optimization/optuna_study_stk.pkl
+player_prediction_app/backend/venv/
+
+player_prediction_app/backend/data/unused_sets/
+player_prediction_app/backend/data/models/
+player_prediction_app/backend/data/optimization/optuna_study_lgb.pkl
+player_prediction_app/backend/data/optimization/optuna_study_xgb.pkl
+player_prediction_app/backend/data/optimization/optuna_study_rfr.pkl
+player_prediction_app/backend/data/optimization/optuna_study_stk.pkl
+player_prediction_app/data_collection/data/

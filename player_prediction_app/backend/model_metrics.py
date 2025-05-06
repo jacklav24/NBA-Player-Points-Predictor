@@ -44,6 +44,7 @@ def run_studies(X, scaler, n_trials: int = 50):
     best_rfr = study_rfr.best_params
     best_xgb = study_xgb.best_params
     best_lgb = study_lgb.best_params
+    print('studies done!')
     return study_rfr, study_xgb, study_lgb, best_rfr, best_xgb, best_lgb
 
 
@@ -101,7 +102,8 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
             "reg_alpha": trial.suggest_float("reg_alpha", 0, 5),
             "reg_lambda": trial.suggest_float("reg_lambda", 0, 5),
             "random_state": 42,
-            "n_jobs": -1
+            "n_jobs": -1,
+            "verbosity": -1
         }
         lgb_model = LGBMRegressor(**params)
         lgb_model.fit(Xs_train, y_train)
@@ -112,14 +114,14 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
         2 of the 3 should be commented out at all times.'''
     
     # 1) DEFAULT SAMPLER
-    # study_rfr = op.create_study(direction="minimize", study_name="RF_RMSE")
+    study_rfr = op.create_study(direction="minimize", study_name="RF_RMSE")
 
     
     # study_rfr = op.create_study(direction="minimize", sampler=op.samplers.RandomSampler(), study_name="RF_RMSE")
 
     # 3) EXPLICIT CONTROL SAMPLER (requires sampler initialization line)
     sampler = op.samplers.TPESampler(n_startup_trials=10, seed=42)
-    study_rfr = op.create_study(direction="minimize", sampler=sampler)
+    # study_rfr = op.create_study(direction="minimize", sampler=sampler)
     
     # optimize!
     study_rfr.optimize(obj_rfr, n_trials=50)
@@ -129,14 +131,14 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
     ''' Similarly we can choose 3 sample types here. 2 of the 3 should be commented out at all times. '''
     
     # 1) DEFAULT SAMPLER
-    # study_xgb = op.create_study(direction="minimize", study_name="XGB_RMSE")
+    study_xgb = op.create_study(direction="minimize", study_name="XGB_RMSE")
 
     # 2) RANDOM SAMPLER
     # study_xgb = op.create_study(direction="minimize", sampler=op.samplers.RandomSampler(), study_name="XGB_RMSE") 
 
     # 3) EXPLICIT CONTROL SAMPLER (requires sampler initialization line)
     sampler = op.samplers.TPESampler(n_startup_trials=10, seed=42)
-    study_xgb = op.create_study(direction="minimize", sampler=sampler)
+    # study_xgb = op.create_study(direction="minimize", sampler=sampler)
     
     # optimize!
     study_xgb.optimize(obj_xgb, n_trials=50)
@@ -145,14 +147,14 @@ def optimize_hyperparams(X_train, y_train, X_test, y_test, n_trials: int = 50, )
     ''' Similarly we can choose 3 sample types here. 2 of the 3 should be commented out at all times. '''
     
     # 1) DEFAULT SAMPLER
-    # study_lgb = op.create_study(direction="minimize", study_name="LGB_RMSE")
+    study_lgb = op.create_study(direction="minimize", study_name="LGB_RMSE")
 
     # 2) RANDOM SAMPLER
     # study_lgb = op.create_study(direction="minimize", sampler=op.samplers.RandomSampler(), study_name="LGB_RMSE") 
 
     # 3) EXPLICIT CONTROL SAMPLER (requires sampler initialization line)
     sampler = op.samplers.TPESampler(n_startup_trials=10, seed=42)
-    study_lgb = op.create_study(direction="minimize", sampler=sampler)
+    # study_lgb = op.create_study(direction="minimize", sampler=sampler)
     
     # optimize!
     study_lgb.optimize(obj_lgb, n_trials=n_trials)

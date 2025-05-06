@@ -50,7 +50,7 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 def recompute_global_metrics():
     global rfr_gy_pred, xgb_gy_pred, lgb_gy_pred, stk_gy_pred, Xs_test
     global rfr_g_mae, rfr_g_rmse, xgb_g_mae, xgb_g_rmse, lgb_g_mae, lgb_g_rmse, stk_g_mae, stk_g_rmse
-
+    
     rfr_gy_pred = rfr_model.predict(Xs_test)
     xgb_gy_pred = xgb_model.predict(Xs_test)
     lgb_gy_pred = lgb_model.predict(Xs_test)
@@ -64,6 +64,7 @@ def recompute_global_metrics():
     lgb_g_rmse = root_mean_squared_error(y_test, lgb_gy_pred)
     stk_g_mae  = mean_absolute_error(y_test, stk_gy_pred)
     stk_g_rmse = root_mean_squared_error(y_test, stk_gy_pred)
+
 
 def train_global_models(n_trials: int = 50):
     global rfr_model, xgb_model, lgb_model, stacked_model, scaler, X
@@ -231,13 +232,15 @@ def run_optimization(n_trials: int = 50):
     global rfr_model, xgb_model, lgb_model, stacked_model, scaler, players_data
     _, _, _, best_rfr, best_xgb, best_lgb = mm.run_studies(players_data, scaler)
 
-    
+    print("training models...")
     rfr_model, xgb_model, lgb_model, stacked_model, scaler, X, X_train, X_test, y_train, y_test  = train_model(
         players_data,
         rfr_params=best_rfr,
         xgb_params=best_xgb,
         lgb_params=best_lgb)
+    print('models trained')
     Xs_test = setup.scale_columns(scaler, X_test.copy(), False)
+
     recompute_global_metrics()
     
     print(f"🔧 Hyperparams updated: RF={best_rfr}, XGB={best_xgb}")

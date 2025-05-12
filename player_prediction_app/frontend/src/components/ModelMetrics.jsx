@@ -18,8 +18,16 @@ import React, { useState } from "react";
 import FeatureBar from "./FeatureBar"; 
 import CombinedFeatureChart from "./CombinedFeatureChart";
 
-export default function ModelMetrics({ metrics, featureImportance, playerPredicted }) {
+export default function ModelMetrics({ metrics, featureImportance, playerPredicted, playerName }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const formatPlayerName = (name) =>
+    name
+      ?.split(/[_-]/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(" ");
+
+
   const models = [
     { key: "rfr", label: "Random Forest" },
     { key: "xgb", label: "XGBoost" },
@@ -114,7 +122,7 @@ export default function ModelMetrics({ metrics, featureImportance, playerPredict
   return (
     <div className="w-full mx-auto mt-12 p-6 bg-[#2a2d55] shadow-xl">
       <h2 className="text-2xl font-semibold text-center text-indigo-300 mb-4">
-              Model Diagnostics
+              Model Diagnostics {playerName && <span className="font-normal text-indigo-200"> — {formatPlayerName(playerName)}</span>}
             </h2>
       <hr className="border-indigo-400 mb-4" />
 

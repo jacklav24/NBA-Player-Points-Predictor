@@ -100,6 +100,7 @@ function HomePage() {
         setBlendedResult(null); 
         setIsPredicting(true);
         console.log("about to fetch")
+        console.log("this is player", player)
         const [blendedRes] = await Promise.all([
           axios.post('http://localhost:8000/predict_both', {
             player_name: player,
@@ -199,6 +200,7 @@ function HomePage() {
                 metrics={insights.metrics}
                 featureImportance={insights.feature_importance}
                 playerPredicted={playerPredicted}
+                playerName={player}
               />
         )}
       </div>
@@ -209,3 +211,4 @@ function HomePage() {
 
 
 export default HomePage;
+

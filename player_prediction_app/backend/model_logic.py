@@ -53,7 +53,13 @@ def load_players_data():
             player_name = file.replace(".csv", "")
 
             # 3) Read the raw per‐game CSV into `raw_df`
-            raw_df = pd.read_csv(os.path.join(team_path, file))
+            # raw_df = pd.read_csv(os.path.join(team_path, file))
+            try:
+                raw_df = pd.read_csv(os.path.join(team_path, file))
+                
+            except pd.errors.ParserError as e:
+                print(f"ParserError in file: {os.path.join(team_path, file)}")
+                print(e)
             if len(raw_df) < CUTOFF_VALUE:
                 continue
             # 4) Preprocess & merge: parses dates, filters DNPs, merges opponent D-stats

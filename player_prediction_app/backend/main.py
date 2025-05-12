@@ -21,6 +21,8 @@ from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_sco
 import json
 from pathlib import Path
 import model_metrics as mm
+import pandas as pd
+from constants import N_CUTOFF
 
 from model_logic import (
     load_players_data,
@@ -170,13 +172,20 @@ def compute_diagnostics_for_test_set(
             f'{tag}_rmse_g': root_mean_squared_error(y_test, preds),
             f'{tag}_r2_g':   r2_score(y_test, preds),
             f'{tag}_bias_g': float((preds - y_test).mean()),
-            f'{tag}_within_n_g': within_n_points(y_test, preds, n=3),
+            f'{tag}_within_n_g': within_n_points(y_test, preds),
             })
-            if tag in ('rfr','xgb', 'lgb'):
-                out['feature_importance'][f'{tag}_g'] = {
-                feat: float(imp)
-                for feat, imp in zip(Xs_test.columns, mdl.feature_importances_)
-                }
+            if tag == 'lgb':
+                importances = mdl.booster_.feature_importance(importance_type='gain')
+                norm = importances.sum()
+            elif tag == 'xgb' or tag == 'rfr':
+                importances = mdl.feature_importances_
+                norm = importances.sum()
+
+            out['feature_importance'][f'{tag}_g'] = {
+                feat: float(imp / norm) if norm != 0 else 0.0
+                for feat, imp in zip(Xs_test.columns, importances)
+            }
+
 
 
     # Bail if no individual model
@@ -194,7 +203,7 @@ def compute_diagnostics_for_test_set(
           f'{tag}_rmse_i': root_mean_squared_error(y_i_test, preds),
           f'{tag}_r2_i':   r2_score(y_i_test, preds),
           f'{tag}_bias_i': float((preds - y_i_test).mean()),
-          f'{tag}_within_n_i': within_n_points(y_i_test, preds, n=3),
+          f'{tag}_within_n_i': within_n_points(y_i_test, preds),
         })
         if tag in ('rfr','xgb', 'lgb'):
             out['feature_importance'][f'{tag}_i'] = {
@@ -221,7 +230,7 @@ def compute_diagnostics_for_test_set(
               f'{tag}_rmse_b':     root_mean_squared_error(y_i_test, blended),
               f'{tag}_r2_b':       r2_score(y_i_test, blended),
               f'{tag}_bias_b':     float((blended - y_i_test).mean()),
-              f'{tag}_within_n_b': within_n_points(y_i_test, blended, n=3),
+              f'{tag}_within_n_b': within_n_points(y_i_test, blended),
             })
 
     return out
@@ -247,9 +256,10 @@ def run_optimization(n_trials: int = 50):
     return best_rfr, best_xgb
 
     
-def within_n_points(y_true, y_pred, n=5):
-    differences = np.abs(y_true - y_pred)
-    return np.mean(differences <= n)  # returns percentage
+def within_n_points(y_true, y_pred, n=N_CUTOFF):
+    # differences = np.abs(y_true - y_pred)
+    # return np.mean(differences <= n)  # returns percentage
+    return np.mean(y_pred > (y_true - n))
 
 
 
@@ -438,7 +448,35 @@ def run_all_prediction(payload: PredictionRequest):
 
         if payload.save_run:
             mm.save_run(run)
+        # CSV_PATH = Path("data/prediction_results.csv")
+        # CSV_PATH.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
 
+        # # Prepare row data
+        # row = {
+        #     "player_name": payload.player_name,
+        #     "opponent": payload.opponent,
+        #     "home": payload.home,
+        #     "global_rfr_pred": rfr_pred_g["predicted_points"],
+        #     "global_xgb_pred": xgb_pred_g["predicted_points"],
+        #     "global_lgb_pred": lgb_pred_g["predicted_points"],
+        #     "global_stk_pred": stk_pred_g["predicted_points"],
+        #     "individual_rfr_pred": rfr_pred_i["predicted_points"],
+        #     "individual_xgb_pred": xgb_pred_i["predicted_points"],
+        #     "individual_lgb_pred": lgb_pred_i["predicted_points"],
+        #     "individual_stk_pred": stk_pred_i["predicted_points"],
+        #     "blended_rfr_pred": round(blended["rfr"], 2),
+        #     "blended_xgb_pred": round(blended["xgb"], 2),
+        #     "blended_lgb_pred": round(blended["lgb"], 2),
+        #     "blended_stk_pred": round(blended["stk"], 2),
+        #     "alpha": round(α, 4),
+        #     "timestamp": datetime.now().isoformat()
+        # }
+        
+        # row_df = pd.DataFrame([row])
+        # if CSV_PATH.exists():
+        #     row_df.to_csv(CSV_PATH, mode='a', index=False, header=False)
+        # else:
+        #     row_df.to_csv(CSV_PATH, mode='w', index=False, header=True)
         # 5) return predictions as JSON
         return {
         "global_model":     {"rfr": rfr_pred_g, "xgb": xgb_pred_g, "lgb": lgb_pred_g, "stk": stk_pred_g},

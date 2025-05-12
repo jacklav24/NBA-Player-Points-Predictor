@@ -17,8 +17,10 @@ import React, { useMemo } from 'react';
 const MODELS = [
   { key: 'rfr_g', label: 'RF (Global)' },
   { key: 'xgb_g', label: 'XGB (Global)' },
+  { key: 'lgb_g', label: 'LGB (Global)' },
   { key: 'rfr_i', label: 'RF (Individual)' },
   { key: 'xgb_i', label: 'XGBoost (Individual)' },
+  { key: 'lgb_i', label: 'LightGBM (Individual)' },
 ];
 
 export default function CombinedFeatureChart({ featureImportance = {} }) {

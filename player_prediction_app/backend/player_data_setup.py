@@ -30,8 +30,8 @@ def read_misc_stats(filepath):
     team_stats_df = pd.read_csv(filepath)
 
 
-    team_stats_df = team_stats_df.drop(columns=['W','L','PW','PL','MOV','SOS','SRS','ORtg','FTr','3PAr','eFG%','TOV%','ORB%','SOS','SRS','ORtg','FTr', '3PAr', 'eFG%', 'TOV%', 'ORB%', 'FT/FGA'])
-    team_stats_df.rename(columns={'eFG%.1': 'eFG%', 'TOV%.1': 'TOV%', 'FT/FGA.1':'FT/FGA'}, inplace=True)
+    team_stats_df = team_stats_df.drop(columns=['W','L','PW','PL','MOV','SOS','SRS','ORtg','FTr','3PAr','eFG%','TOV%','ORB%','SOS','SRS','ORtg','FTr', '3PAr', 'eFG%', 'TOV%', 'ORB%', 'FT/FGA'], errors='ignore')
+    team_stats_df.rename(columns={'eFG%.1': 'eFG%', 'TOV%.1': 'TOV%', 'FT/FGA.1':'FT/FGA'}, inplace=True, errors='ignore')
     team_stats_df.to_csv(filepath, index=False)
     return
 
@@ -68,7 +68,6 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     """
     # print("player df columns", df.columns)
     df = df.copy()
-    df["Player"] = player_name
     num_cols = ['FG', 'FGA', 'FG%', '3P', '3PA', '3P%', '2P', '2PA', '2P%', 'eFG%',
         'FT', 'FTA', 'FT%', 'ORB', 'DRB', 'TRB',
         'AST', 'STL', 'BLK', 'TOV', 'PF', 'PTS', '+/-'
@@ -90,8 +89,8 @@ def preprocess_player_df(df: pd.DataFrame, team_stats_df: pd.DataFrame, player_n
     
     # Flag home games
     # merged['Home'] = merged['Unnamed: 5'].apply(lambda x: 1 if pd.isna(x) or x == '' else 0)
-    possible = ["Unnamed: 5", "Unnamed: 2"]
-    home_col = next((c for c in possible if c in merged.columns), None)
+    possible = ["Unnamed: 5", "Unnamed: 2", ""]
+    home_col = 'Home'
     merged["Home"] = merged[home_col] \
         .apply(lambda x: 1 if pd.isna(x) or x == "" else 0)
     # drop games where 

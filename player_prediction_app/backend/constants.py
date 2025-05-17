@@ -3,6 +3,7 @@
 # Cutoff number of games for training data
 CUTOFF_VALUE = 10
 
+N_CUTOFF = 3
 
 # Column to predict
 TARGET_COLUMN = "PTS"

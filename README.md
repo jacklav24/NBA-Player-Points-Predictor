@@ -59,7 +59,7 @@ player-predictor-app/
 cd player_predition_app/backend
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install fastapi uvicorn scikit-learn pandas numpy
+pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 

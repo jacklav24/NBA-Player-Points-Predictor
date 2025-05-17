@@ -52,7 +52,35 @@ player-predictor-app/
 
 ---
 
-## 🚀 How to Run
+## 🚀 How to Setup/Run for the first time
+
+## 🔧 Initial Setup (First-Time Use on a New Machine)
+
+Before running the app, follow these steps to get your environment and data set up:
+
+### Install Prerequisites
+
+I would recommend:
+
+- If using VSCode, you can just install the Jupyter extension for an integrated experience. Don't worry about doing "pip install notebook"
+
+- **Python 3.10+** must be installed.  
+  Download from: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+- In the terminal (VSCode integrated recommended) run:
+    ```bash
+    pip install pandas nba_api requests
+    ```
+- (Optional) Install **Jupyter Notebook**:
+  ```bash
+  pip install notebook
+  ```
+
+Then, run data_retrieval and collection. Adjust the "Start Player" if your session times out. This will populate your data for model training. 
+
+I have commented out the playoff data appending. I recommend making a copy of your initial data first, that way if you want to reappend/update data throughout the playoffs, you can use that copy rather than re-running the whole thing. You do this throughout the playoffs by commenting out the initial player retrieval, and only appending the playoff data.
+
+Once you've done this, you're ready for the app...
+
 
 ### Backend
 ```zsh

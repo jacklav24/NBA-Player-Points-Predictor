@@ -149,3 +149,4 @@ player_prediction_app/backend/data/optimization/optuna_study_xgb.pkl
 player_prediction_app/backend/data/optimization/optuna_study_rfr.pkl
 player_prediction_app/backend/data/optimization/optuna_study_stk.pkl
 player_prediction_app/data_collection/data/
+player_prediction_app/backend/data/player_game_data

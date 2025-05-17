@@ -59,6 +59,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     raw_eff = out['PTS'] / out['MP'].replace(0, np.nan)
     out['PTS_per_min'] = raw_eff.ewm(span=ROLLING_TREND_WINDOW, adjust=False).mean().fillna(0)
 
+
     # Opponent adjustment: league avg DRtg vs opp
     league_avg = out['DRtg'].mean()
     out['def_adj'] = out['PTS_last_5_avg'] * (league_avg / out['DRtg'])

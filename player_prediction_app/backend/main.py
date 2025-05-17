@@ -205,10 +205,16 @@ def compute_diagnostics_for_test_set(
           f'{tag}_bias_i': float((preds - y_i_test).mean()),
           f'{tag}_within_n_i': within_n_points(y_i_test, preds),
         })
-        if tag in ('rfr','xgb', 'lgb'):
-            out['feature_importance'][f'{tag}_i'] = {
-              feat: float(imp)
-              for feat, imp in zip(X_i_test.columns, mdl.feature_importances_)
+        if tag == 'lgb':
+                importances = mdl.booster_.feature_importance(importance_type='gain')
+                norm = importances.sum()
+        elif tag == 'xgb' or tag == 'rfr':
+                importances = mdl.feature_importances_
+                norm = importances.sum()
+
+        out['feature_importance'][f'{tag}_i'] = {
+                feat: float(imp / norm) if norm != 0 else 0.0
+                for feat, imp in zip(Xs_test.columns, importances)
             }
 
     # --- BLENDED metrics (suffix _b) ---

@@ -24,6 +24,7 @@ import model_metrics as mm
 import pandas as pd
 from constants import N_CUTOFF
 
+
 from model_logic import (
     load_players_data,
     get_player_list,
@@ -43,6 +44,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Load hyperparameter configs
+config_dir = Path(__file__).parent / "data" / "optimization"
+with open(config_dir / "rfr_params.json") as f:
+    rfr_params = json.load(f)
+with open(config_dir / "xgb_params.json") as f:
+    xgb_params = json.load(f)
+with open(config_dir / "lgb_params.json") as f:
+    lgb_params = json.load(f)
+
+
 
 # Load static data
 players_data, team_stats, all_teams = load_players_data()
@@ -107,7 +119,7 @@ def load_global_models():
         y_test   = joblib.load(MODEL_DIR/"y_test_global.pkl")
         return rfr, xgb, lgb, stk, scaler, X, X_test, y_test
     except FileNotFoundError:
-        return None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None, None
 
 
 rfr_model, xgb_model, lgb_model, stacked_model, scaler, X, X_test, y_test = load_global_models()
@@ -129,15 +141,6 @@ if rfr_model is None:
 player = None
 team = None
 _indiv_model_cache = {}
-
-# Load hyperparameter configs
-config_dir = Path(__file__).parent / "data" / "optimization"
-with open(config_dir / "rfr_params.json") as f:
-    rfr_params = json.load(f)
-with open(config_dir / "xgb_params.json") as f:
-    xgb_params = json.load(f)
-with open(config_dir / "lgb_params.json") as f:
-    lgb_params = json.load(f)
 
 
 
@@ -220,17 +223,20 @@ def compute_diagnostics_for_test_set(
     # --- BLENDED metrics (suffix _b) ---
     # requires an alpha blend weight
     if alpha is not None:
+        X_i_test_scaled_indiv = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+        X_i_test_scaled_global = setup.scale_columns(scaler, X_test_i.copy(), fitting=False)
+
         for tag, (ind_mdl, glob_mdl) in zip(
             ['rfr','xgb','lgb', 'stk'],
             [(rfr_i, models['global'][0]),
              (xgb_i, models['global'][1]),
              (lgb_i, models['global'][2]),
              (stk_i, models['global'][3]),]
-        ):
-            indiv_preds = ind_mdl.predict(X_i_test)
-            glob_preds  = glob_mdl.predict(X_i_test)
+        ):  
+            
+            indiv_preds = ind_mdl.predict(X_i_test_scaled_indiv)
+            glob_preds  = glob_mdl.predict(X_i_test_scaled_global)
             blended     = alpha*indiv_preds + (1-alpha)*glob_preds
-
             out['metrics'].update({
               f'{tag}_mae_b':      mean_absolute_error(y_i_test, blended),
               f'{tag}_rmse_b':     root_mean_squared_error(y_i_test, blended),
@@ -238,7 +244,7 @@ def compute_diagnostics_for_test_set(
               f'{tag}_bias_b':     float((blended - y_i_test).mean()),
               f'{tag}_within_n_b': within_n_points(y_i_test, blended),
             })
-
+    print(f"[DEBUG] STK MAE (blended): {out['metrics']['stk_mae_b']:.4f}")
     return out
 
 
@@ -428,7 +434,8 @@ def run_all_prediction(payload: PredictionRequest):
           "stk": α*stk_pred_i["predicted_points"]+ (1-α)*stk_pred_g["predicted_points"],
         }
         Xs_test_i = X_test_i
-
+        Xs_test_i = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+        print('gonna calc blended')
         diagnostics = compute_diagnostics_for_test_set(
                 Xs_test, y_test,
                 models={
@@ -505,23 +512,38 @@ def run_all_prediction(payload: PredictionRequest):
 @app.get("/model_insights")
 def model_insights():
     # Declare globals
-    global rfr_model, xgb_model, lgb_model, stacked_model, scaler, X, Xs_test, y_test, player, team
+    global rfr_model, xgb_model, lgb_model, stacked_model, scaler, X, Xs_test, y_test, player, team, Xs_test_i, y_test_i
 
-
+    
 
     if rfr_model is None or Xs_test is None:
         raise HTTPException(400, "Global model not trained. POST /train_global first.")
+    print("here's global")
     diagnostics = compute_diagnostics_for_test_set(
         Xs_test, y_test,
         models={"global": (rfr_model, xgb_model, lgb_model, stacked_model)},
         individual_split=None, alpha=None
     )
-
     # Include individual/blended if available
     key = (player, team)
     if key in _indiv_model_cache:
         rfr_i, xgb_i, lgb_i, stk_i, scaler_i, X_i, X_train_i, X_test_i, y_train_i, y_test_i = _indiv_model_cache[key]
         Xs_i_test = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
+        # Xs_i_test = X_test_i
+        print('just scaled')
+        # extra = compute_diagnostics_for_test_set(
+        #     Xs_i_test, y_test_i,
+        #     models={
+        #         "global": (rfr_model, xgb_model, lgb_model, stacked_model),
+        #         "individual": (rfr_i, xgb_i, lgb_i, stk_i)
+        #     },
+        #     individual_split=(Xs_i_test, y_test_i),
+        #     alpha=(len(X_test_i)/30)/(1 + len(X_test_i)/30),
+        #     skip_global=True
+        # )
+        N = len(X_test_i)
+        alpha = (N/30) / (1 + N/30)
+
         extra = compute_diagnostics_for_test_set(
             Xs_i_test, y_test_i,
             models={
@@ -529,13 +551,13 @@ def model_insights():
                 "individual": (rfr_i, xgb_i, lgb_i, stk_i)
             },
             individual_split=(Xs_i_test, y_test_i),
-            alpha=(len(X_test_i)/30)/(1 + len(X_test_i)/30),
+            alpha=alpha,
             skip_global=True
         )
         diagnostics["metrics"].update(extra["metrics"])
         diagnostics["feature_importance"].update(extra["feature_importance"])
     # print(diagnostics)
-   
+        
     return diagnostics
 
 @app.get("/get_runs")

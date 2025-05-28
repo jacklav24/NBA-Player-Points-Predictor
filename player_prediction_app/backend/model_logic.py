@@ -12,17 +12,21 @@
 
 import pandas as pd
 import os
+os.makedirs("plots", exist_ok=True)
 import numpy as np
+from sklearn.inspection import permutation_importance
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score, learning_curve, train_test_split
 from sklearn.ensemble import StackingRegressor
 from sklearn.linear_model import RidgeCV
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from xgboost import XGBRegressor
 from lightgbm import LGBMRegressor
-from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error, r2_score
 import xgboost as xgb
+import matplotlib
+matplotlib.use("Agg") 
 import matplotlib.pyplot as plt
 import player_data_setup as setup
 from feature_engineering import prep_game, engineer_features
@@ -88,7 +92,10 @@ def train_model(player_df, rfr_params=None, xgb_params=None, lgb_params=None):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
     scaler = StandardScaler()
+    
     X_train_scaled = setup.scale_columns(scaler, X_train, fitting=True)
+    X_scaled = setup.scale_columns(scaler, X, fitting=False)
+    X_test_scaled = setup.scale_columns(scaler, X_test, fitting=False)
     
     # Random Forest Config selection
     rfr_defaults = {"n_estimators": 100, "random_state": 42}
@@ -116,8 +123,9 @@ def train_model(player_df, rfr_params=None, xgb_params=None, lgb_params=None):
     lgb_cfg = lgb_defaults if lgb_params is None else {**lgb_defaults, **lgb_params}
     lgb_model = LGBMRegressor(**lgb_cfg)
     estimators = [
-    ('rf', rfr_model),
-    ('xgb', xgb_model)
+        ('rfr', rfr_model),
+        ('xgb', xgb_model),
+        ('lgb', lgb_model),
     ]
     stacked_model = StackingRegressor(
         estimators=estimators,
@@ -130,6 +138,67 @@ def train_model(player_df, rfr_params=None, xgb_params=None, lgb_params=None):
     xgb_model.fit(X_train_scaled, y_train)
     lgb_model.fit(X_train_scaled, y_train)
     stacked_model.fit(X_train_scaled, y_train)
+    
+    models = {
+        'rfr': rfr_model,
+        'xgb': xgb_model,
+        'lgb': lgb_model,
+        'stk': stacked_model
+    }
+
+    # for tag, mdl in models.items():
+    #     mdl.fit(X_train_scaled, y_train)
+
+    #     # 1. Train/Test metrics
+    #     train_preds = mdl.predict(X_train_scaled)
+    #     test_preds  = mdl.predict(X_test_scaled)
+    #     print(f"\n[{tag.upper()}] Train MAE: {mean_absolute_error(y_train, train_preds):.3f}")
+    #     print(f"[{tag.upper()}] Test  MAE:  {mean_absolute_error(y_test,  test_preds):.3f}")
+    #     print(f"[{tag.upper()}] Test  R²:   {r2_score(y_test, test_preds):.3f}")
+
+    #     # 2. Cross-validation
+    #     cv_scores = cross_val_score(mdl, X_scaled, y, cv=5, scoring='neg_mean_absolute_error')
+    #     print(f"[{tag.upper()}] CV MAE:    {-cv_scores.mean():.3f} ± {cv_scores.std():.3f}")
+
+    #     # 3. Learning Curve
+    #     train_sizes, train_scores, val_scores = learning_curve(
+    #         mdl, X_scaled, y, cv=5, scoring='neg_mean_absolute_error', train_sizes=np.linspace(0.1, 1.0, 5)
+    #     )
+    #     plt.figure()
+    #     plt.plot(train_sizes, -train_scores.mean(axis=1), label='Train MAE')
+    #     plt.plot(train_sizes, -val_scores.mean(axis=1), label='Val MAE')
+    #     plt.title(f"{tag.upper()} Learning Curve")
+    #     plt.xlabel("Training Size")
+    #     plt.ylabel("MAE")
+    #     plt.legend()
+    #     plt.tight_layout()
+    #     plt.savefig(f"plots/{tag}_learning_curve.png")
+    #     plt.close()
+
+    #     # 4. Residual Plot
+    #     residuals = y_test - test_preds
+    #     plt.figure()
+    #     plt.scatter(test_preds, residuals, alpha=0.6)
+    #     plt.axhline(0, color='r', linestyle='--')
+    #     plt.title(f"{tag.upper()} Residuals")
+    #     plt.xlabel("Predicted")
+    #     plt.ylabel("Residual")
+    #     plt.tight_layout()
+    #     plt.savefig(f"plots/{tag}_residuals.png")
+    #     plt.close()
+
+    #     # 5. Permutation Importance
+    #     perm = permutation_importance(mdl, X_test_scaled, y_test, scoring='neg_mean_absolute_error', n_repeats=5)
+    #     sorted_idx = perm.importances_mean.argsort()
+    #     plt.figure()
+    #     plt.barh(range(len(sorted_idx)), perm.importances_mean[sorted_idx])
+    #     plt.yticks(range(len(sorted_idx)), np.array(X.columns)[sorted_idx])
+    #     plt.title(f"{tag.upper()} Permutation Importance")
+    #     plt.tight_layout()
+    #     plt.savefig(f"plots/{tag}_perm_importance.png")
+    #     plt.close()
+
+
     # Return the models and the splits
     return rfr_model, xgb_model, lgb_model, stacked_model, scaler, X, X_train, X_test, y_train, y_test
 

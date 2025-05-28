@@ -77,14 +77,14 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     - Z-score based performance normalization
     - Contextual features like rest and calendar encoding
     """
-    out = df.sort_values(['Player_ID', 'Date']).copy()
+    out = df.sort_values(['Player_Name', 'Date']).copy()
 
     # Ensure numeric types for key stats
     for col in ['PTS', 'FGA', 'FTA', '3PA', 'TOV', 'DRtg', 'Pace', 'eFG%_y', 'TOV%', 'DRB%']:
         out[col] = pd.to_numeric(out[col], errors='coerce').fillna(0)
 
     # --- Rest Days & Game Context ---
-    last_played = out.groupby('Player_ID')['Date'].shift(1)
+    last_played = out.groupby('Player_Name')['Date'].shift(1)
     out['Days_of_rest'] = (out['Date'] - last_played).dt.days.fillna(0)
     out['is_back2back'] = (out['Days_of_rest'] == 1).astype(int)
 
@@ -108,14 +108,14 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     for var in ROLLING_VARS:
         for w in ROLLING_WINDOWS:
             out[f'{var}_r{w}'] = (
-                out.groupby('Player_ID')[var]
+                out.groupby('Player_Name')[var]
                    .transform(lambda x: x.shift(1).rolling(window=w, min_periods=1).mean())
             )
 
     # --- Rolling Std (volatility) ---
     for var in ['PTS', 'FGA']:
         out[f'{var}_std_r5'] = (
-            out.groupby('Player_ID')[var]
+            out.groupby('Player_Name')[var]
                .transform(lambda x: x.shift(1).rolling(5, min_periods=2).std())
                .fillna(0)
         )
@@ -132,7 +132,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         return 0
 
     out['PTS_trend_5'] = (
-        out.groupby('Player_ID')['PTS_r5']
+        out.groupby('Player_Name')['PTS_r5']
            .transform(lambda x: x.rolling(window=5, min_periods=2).apply(_slope, raw=False))
            .fillna(0)
     )
@@ -140,22 +140,22 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     # --- EWMA PTS per minute (efficiency) ---
     raw_eff = out['PTS'] / out['MP'].replace(0, np.nan)
     out['PTS_per_min'] = (
-        raw_eff.ewm(span=5, adjust=False).mean().fillna(0)
+        raw_eff.shift(1).ewm(span=5, adjust=False).mean().fillna(0)
     )
 
     # --- Hot Streak Flag ---
-    rolling_mean = out.groupby("Player_ID")['PTS'].transform(lambda x: x.expanding().mean().shift(1))
+    rolling_mean = out.groupby("Player_Name")['PTS'].transform(lambda x: x.expanding().mean().shift(1))
     out['Hot_Streak'] = (
         (out['PTS'] > rolling_mean)
         .astype(int)
-        .groupby(out['Player_ID'])
+        .groupby(out['Player_Name'])
         .transform(lambda x: x.rolling(window=3, min_periods=1).sum())
         .fillna(0)
     )
 
     # --- Z-Score Normalization of PTS vs Player History ---
-    expanding_mean = out.groupby('Player_ID')['PTS'].transform(lambda x: x.expanding().mean())
-    expanding_std  = out.groupby('Player_ID')['PTS'].transform(lambda x: x.expanding().std()).replace(0, 1)
+    expanding_mean = out.groupby('Player_Name')['PTS'].transform(lambda x: x.expanding().mean().shift(1))
+    expanding_std  = out.groupby('Player_Name')['PTS'].transform(lambda x: x.expanding().std().shift(1)).replace(0, 1)
     out['PTS_z'] = (out['PTS'] - expanding_mean) / expanding_std
 
     # --- Opponent Adjusted Scoring ---

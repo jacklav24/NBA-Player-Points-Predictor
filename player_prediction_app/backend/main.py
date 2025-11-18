@@ -12,6 +12,7 @@
 
 from datetime import datetime
 from uuid import uuid4
+
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
@@ -23,6 +24,10 @@ from pathlib import Path
 import model_metrics as mm
 import pandas as pd
 from constants import N_CUTOFF
+from fastapi.responses import JSONResponse
+import pandas as pd
+import traceback
+
 
 
 from model_logic import (
@@ -37,6 +42,7 @@ import player_data_setup as setup
 from constants import FEATURE_COLUMNS, COLUMNS_TO_SCALE
 
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -310,7 +316,8 @@ class PredictionRequest(BaseModel):
 # NBA Specific    
 @app.get("/{team}/players")
 def get_players(team: str):
-    return get_player_list(team, players_data)
+    return get_player_list(team, players_data, season=2025)
+
 
 @app.get("/teams")
 def get_teams():
@@ -435,7 +442,7 @@ def run_all_prediction(payload: PredictionRequest):
         }
         Xs_test_i = X_test_i
         Xs_test_i = setup.scale_columns(scaler_i, X_test_i.copy(), fitting=False)
-        print('gonna calc blended')
+
         diagnostics = compute_diagnostics_for_test_set(
                 Xs_test, y_test,
                 models={

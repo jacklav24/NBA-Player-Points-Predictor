@@ -149,4 +149,12 @@ player_prediction_app/backend/data/optimization/optuna_study_xgb.pkl
 player_prediction_app/backend/data/optimization/optuna_study_rfr.pkl
 player_prediction_app/backend/data/optimization/optuna_study_stk.pkl
 player_prediction_app/data_collection/data/
+player_prediction_app/data_collection/data/player_game_data_2025/
 player_prediction_app/backend/data/player_game_data
+player_prediction_app/backend/auto_predictor.py
+player_prediction_app/backend/data_connector.py
+player_prediction_app/backend/prize_endpoint.py
+player_prediction_app/backend/prize_stuff.py
+
+player_prediction_app/frontend/src/pages/ParlayBoardPage.jsx
+player_prediction_app/frontend/src/components/ParlayBoard.jsx

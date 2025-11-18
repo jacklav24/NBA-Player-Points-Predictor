@@ -46,3 +46,6 @@ typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
 xgboost==3.0.0
+uvicorn[standard]
+fastapi
+pydantic

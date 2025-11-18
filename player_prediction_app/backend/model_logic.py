@@ -34,54 +34,141 @@ from constants import TARGET_COLUMN, FEATURE_COLUMNS, CUTOFF_VALUE
 
 
 import model_metrics as mm
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent
+SEASON_DATA_SOURCES = (
+    ("2024", BASE_DIR / "data" / "player_game_data", BASE_DIR / "data" / "team_def_stats.csv"),
+    ("2025", BASE_DIR / "data" / "player_game_data_2025", BASE_DIR / "data" / "team_def_stats_2025.csv"),
+)
 
 
+# def load_players_data():
+#     # base_path = "./data/player_game_data/"
+#     base_paths = [
+#         ("./data/player_game_data/", "./data/team_def_stats.csv", "2024"),
+#         ("./data/player_game_data_2025/", "./data/team_def_stats_2025.csv", "2025"),
+#     ]
+#     all_players = []
+#     all_teams = []
+#     team_stats_df = pd.read_csv("./data/team_def_stats.csv")
 
-def load_players_data():
-    base_path = "./data/player_game_data/"
+#     # 2) Iterate over each team folder and player CSV
+#     for team_dir in os.listdir(base_path):
+#         all_teams.append(team_dir)
+#         team_path = os.path.join(base_path, team_dir)
+#         if not os.path.isdir(team_path):
+#             continue
+
+#         for file in os.listdir(team_path):
+#             if not file.endswith(".csv"):
+#                 continue
+
+#             player_name = file.replace(".csv", "")
+
+#             # 3) Read the raw per‐game CSV into `raw_df`
+#             # raw_df = pd.read_csv(os.path.join(team_path, file))
+#             try:
+#                 raw_df = pd.read_csv(os.path.join(team_path, file))
+                
+#             except pd.errors.ParserError as e:
+#                 print(f"ParserError in file: {os.path.join(team_path, file)}")
+#                 print(e)
+#             if len(raw_df) < CUTOFF_VALUE:
+#                 continue
+#             # 4) Preprocess & merge: parses dates, filters DNPs, merges opponent D-stats
+#             pre_df = setup.preprocess_player_df(raw_df, team_stats_df, player_name)
+
+#             # 5) Engineer all rolling & contextual features
+#             feat_df = engineer_features(pre_df)
+
+#             # 6) Tag player and team, then collect
+#             feat_df["Player"] = f"{player_name}_{season}"
+#             feat_df["Tm"]     = team_dir
+#             all_players.append(feat_df)
+
+#     # 7) Concatenate every player’s feature‐engineered DataFrame
+#     full_df = pd.concat(all_players, ignore_index=True)
+
+#     # Return your master DataFrame plus the raw team_stats_df and list of teams
+#     return full_df, team_stats_df, all_teams
+
+
+def load_players_data(include_seasons=None):
+    """
+    Build the unified training dataframe. Each season listed in
+    SEASON_DATA_SOURCES loads with its dedicated defensive stats file so that,
+    for example, 2025 player logs are merged with `team_def_stats_2025.csv`.
+    """
+    requested_seasons = (
+        set(include_seasons) if include_seasons else {season for season, *_ in SEASON_DATA_SOURCES}
+    )
+
     all_players = []
-    all_teams = []
-    team_stats_df = pd.read_csv("./data/team_def_stats.csv")
+    all_teams = set()
+    team_stats_by_season = {}
 
-    # 2) Iterate over each team folder and player CSV
-    for team_dir in os.listdir(base_path):
-        all_teams.append(team_dir)
-        team_path = os.path.join(base_path, team_dir)
-        if not os.path.isdir(team_path):
+    for season, base_path, def_path in SEASON_DATA_SOURCES:
+        if season not in requested_seasons:
             continue
 
-        for file in os.listdir(team_path):
-            if not file.endswith(".csv"):
+        if not base_path.exists():
+            continue  # nothing to load for this season
+
+        if not def_path.exists():
+            raise FileNotFoundError(
+                f"Expected defensive stats for {season} at {def_path}, but the file was not found."
+            )
+
+        team_stats_df = pd.read_csv(def_path)
+        team_stats_by_season[season] = team_stats_df
+
+        for team_dir in os.listdir(base_path):
+            team_path = os.path.join(base_path, team_dir)
+            if not os.path.isdir(team_path):
                 continue
 
-            player_name = file.replace(".csv", "")
+            all_teams.add(team_dir)
 
-            # 3) Read the raw per‐game CSV into `raw_df`
-            # raw_df = pd.read_csv(os.path.join(team_path, file))
-            try:
-                raw_df = pd.read_csv(os.path.join(team_path, file))
-                
-            except pd.errors.ParserError as e:
-                print(f"ParserError in file: {os.path.join(team_path, file)}")
-                print(e)
-            if len(raw_df) < CUTOFF_VALUE:
-                continue
-            # 4) Preprocess & merge: parses dates, filters DNPs, merges opponent D-stats
-            pre_df = setup.preprocess_player_df(raw_df, team_stats_df, player_name)
+            for file in os.listdir(team_path):
+                if not file.endswith(".csv"):
+                    continue
 
-            # 5) Engineer all rolling & contextual features
-            feat_df = engineer_features(pre_df)
+                player_name = file.replace(".csv", "")
+                file_path = os.path.join(team_path, file)
 
-            # 6) Tag player and team, then collect
-            feat_df["Player"] = player_name
-            feat_df["Tm"]     = team_dir
-            all_players.append(feat_df)
+                try:
+                    raw_df = pd.read_csv(file_path)
+                except pd.errors.ParserError as e:
+                    print(f"ParserError in file: {file_path}")
+                    print(e)
+                    continue
 
-    # 7) Concatenate every player’s feature‐engineered DataFrame
+                if len(raw_df) < CUTOFF_VALUE:
+                    continue
+
+                pre_df = setup.preprocess_player_df(raw_df, team_stats_df, player_name)
+                feat_df = engineer_features(pre_df)
+
+                feat_df["Player"] = f"{player_name}_{season}"
+                feat_df["Tm"] = team_dir
+                feat_df["Season"] = season
+                all_players.append(feat_df)
+
+    if not all_players:
+        raise ValueError("No player data found for the requested seasons.")
+
+    if not team_stats_by_season:
+        raise ValueError("No defensive team stats were loaded for the requested seasons.")
+
     full_df = pd.concat(all_players, ignore_index=True)
 
-    # Return your master DataFrame plus the raw team_stats_df and list of teams
-    return full_df, team_stats_df, all_teams
+    if "2025" in team_stats_by_season:
+        preferred_team_stats = team_stats_by_season["2025"]
+    else:
+        preferred_team_stats = next(iter(team_stats_by_season.values()))
+
+    return full_df, preferred_team_stats, sorted(all_teams)
 
 
 def train_model(player_df, rfr_params=None, xgb_params=None, lgb_params=None):
@@ -204,8 +291,9 @@ def train_model(player_df, rfr_params=None, xgb_params=None, lgb_params=None):
 
 
 
-def get_player_list(team, df):
+def get_player_list(team, df, season=2025):
     filtered_df = df[df["Tm"] == team]
+    filtered_df = filtered_df[filtered_df["Player"].str.endswith(f"_{season}")]
     return sorted(filtered_df["Player"].unique())
 
 def get_team_list(df):

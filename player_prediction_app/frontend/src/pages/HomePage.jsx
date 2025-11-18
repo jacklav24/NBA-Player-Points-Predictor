@@ -101,6 +101,7 @@ function HomePage() {
         setIsPredicting(true);
         console.log("about to fetch")
         console.log("this is player", player)
+        console.log("home", location)
         const [blendedRes] = await Promise.all([
           axios.post('http://localhost:8000/predict_both', {
             player_name: player,
@@ -168,15 +169,15 @@ function HomePage() {
 
     return (
       <div className="min-h-screen bg-[#1e2147] text-[#f5f5f5] p-8">
-        <h1 className="text-3xl font-bold mb-8 text-center">
-          NBA Player Points Predictor
-        </h1>
-        <button
-        onClick={() => navigate('/runs')}
-        className="absolute top-6 right-6 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm"
-      >
-        Run History
-      </button>
+  <h1 className="text-3xl font-bold mb-8 text-center">
+    NBA Player Points Predictor
+  </h1>
+  <button
+    onClick={() => navigate('/runs')}
+    className="absolute top-6 right-6 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm"
+  >
+    Run History
+  </button>
   
         <RunControls
         teams={teams}

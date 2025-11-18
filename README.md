@@ -4,6 +4,8 @@ This is a full-stack web app that predicts NBA player points based on past game 
 
 It's a great chance to improve and look into modeling, machine learning, and potentially neural networks in the future.
 
+### Right now this is on hold, as the NBA season isn't running. If I can get some good WNBA data, I think I'll do something with that soon!
+
 ## Folder Structure
 
 There are 3 main directories/folders. 
@@ -131,6 +133,8 @@ So what's the significance of the results? Well for now:
 - What about MAE/RMSE? Simply put, these are model metrics, NOT affected by the single game and opponent chosen.
 - The MAE (mean average error) value is from the model's training. So, for example, an MAE of 2.3 indicates that on average, the model in testing was off by 2.3 points in its prediction.
 - The RMSE (root mean squared error) value is from the model's training. However, it punishes large outliers more than MAE does. So, for example, an RMSE of 2.3 indicates that on average, the model in testing was off by 2.3 points in its prediction.
+
+- Currently the best values for these I've achieved is 1.8 MAE, 2.2 RMSE, and R^2 of 0.95.
 
 ---
 
